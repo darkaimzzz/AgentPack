@@ -11,7 +11,7 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Live validation | 16 / 20 | Real MCP discovery, three actual tool calls and rendered Electron E2E; authenticated GitHub/Supabase and actual client loading remain unverified |
 | State safety and recovery | 17 / 20 | Ownership-aware rollback, concurrent-edit rejection, credential filtering, lossless dormancy, atomic persistence; native dormancy may require reactivation before undo, broader crash/concurrency stress testing remains |
 | Product usability | 14 / 15 | Working wizard, pack/target choices, truthful health labels, error recovery, Manage and clean documentation; import/export and historical recovery are CLI-first |
-| Demo delivery | 10 / 10 | Fresh sandbox, prewarm, repeatable E2E scripts, Windows portable build and five-minute presentation guide |
+| Demo delivery | 10 / 10 | Fresh sandbox, prewarm, repeatable E2E scripts, skippable startup sequence, Windows portable build and five-minute presentation guide |
 | **Total** | **92 / 100** | Ready for the tested hackathon demo route |
 
 ## Changes delivered
@@ -39,16 +39,16 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Local Developer flow | Nine config entries installed; 39 tools discovered across three MCP servers |
 | Actual tools/call | 3 / 3 pass: Filesystem reads a sentinel file; Playwright opens about:blank and closes; Sequential Thinking returns a valid terminal step |
 | Runtime dependency audit | Zero known vulnerabilities reported by npm audit --omit=dev |
-| Portable build | Pass; Windows x64, 100,493,162 bytes, unsigned |
-| Packaged launch | Pass: portable launcher returned 0 for the 1.4.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
+| Portable build | Pass; Windows x64, 100,498,418 bytes, unsigned |
+| Packaged launch | Pass: portable launcher returned 0 for the 1.5.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
 
 Tests use synthetic temporary homes, rather than copying or altering the user's real agent configs. The UI test uses the actual renderer, preload and IPC; only the OS folder picker is replaced with a fixture selection. MCP checks launch real packages. Tests of credential failure use clearly fake fixture tokens.
 
 Evidence is in ignored `.qa/ui-results.json`, `.qa/ui-health.png`, `.qa/tool-call-results.json`, and `.qa/packaged-smoke.txt`. Reproduce with the commands in README.
 
-Artifact: `release/AgentPack-1.4.0-win-x64.exe`
+Artifact: `release/AgentPack-1.5.0-win-x64.exe`
 
-SHA-256: `D80632B3CB22AA614296BD025DEC3F07FE07854A78BE36116BC43CFD34B3EC26`
+SHA-256: `130F75D91DFD0F506E51B89300B657FCA7F81ECD1F525E568CA9D054582EB173`
 
 ## Next steps, in priority order
 
