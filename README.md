@@ -51,6 +51,46 @@ DETECT  →  RECOMMEND  →  COMPILE  →  INSTALL  →  VALIDATE  →  ROLLBACK
 
 ---
 
+## For teammates — running the prebuilt app
+
+Grab **`AgentPack-0.1.0-win-x64.exe`** (~96 MB, Windows x64). It is portable: no
+install, no admin rights, nothing added to your PATH. Double-click it.
+
+**Windows will warn you.** The build is not code-signed, so SmartScreen shows
+*"Windows protected your PC"*. Click **More info → Run anyway**. If you would
+rather not, run it from source instead — see Quickstart below.
+
+### Try it without touching your real config first
+
+AgentPack edits the config files of agents you actually use. Everything is
+backed up and rollback is one click, but if you would rather not risk it on a
+first run, point it at a sandbox:
+
+```powershell
+mkdir $env:TEMP\ap\.codex, $env:TEMP\ap\.claude, $env:TEMP\ap\.config\opencode
+copy $env:USERPROFILE\.claude.json $env:TEMP\ap\
+copy $env:USERPROFILE\.codex\config.toml $env:TEMP\ap\.codex\
+$env:AGENTPACK_HOME="$env:TEMP\ap"; .\AgentPack-0.1.0-win-x64.exe
+```
+
+Everything then reads and writes under that folder only.
+
+### What it will change
+
+Real installs modify `~/.claude.json`, `~/.claude/settings.json`,
+`~/.codex/config.toml` and `~/.config/opencode/opencode.jsonc`. Every file is
+copied to `~/.agentpack/backups/<timestamp>/` first, and **Roll back** on the
+final screen restores them. Restart your agent afterwards for changes to load.
+
+### Building it yourself
+
+```bash
+npm install
+npm run dist        # -> release/AgentPack-<version>-win-x64.exe
+```
+
+---
+
 ## Quickstart
 
 Requires **Node 22+** (the engine is TypeScript run natively — no build step).

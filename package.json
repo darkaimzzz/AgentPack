@@ -14,7 +14,8 @@
     "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;const r=require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env});process.exit(r.status===null?1:r.status)\"",
     "rehearse": "node electron/core/rehearse.ts",
     "prewarm": "node electron/core/cli.ts prewarm",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist": "electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1",
@@ -27,9 +28,43 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6"
   },
-  "main": "out/main/main.js"
+  "main": "out/main/main.js",
+  "author": "AgentPack — HackBattle, IEEE CS VIT Vellore",
+  "build": {
+    "appId": "dev.agentpack.app",
+    "productName": "AgentPack",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "registry",
+        "to": "registry"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "AgentPack-${version}-win-x64.exe"
+    },
+    "forceCodeSigning": false
+  }
 }

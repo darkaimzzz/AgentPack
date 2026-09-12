@@ -5,6 +5,13 @@ import { registerHandlers } from './ipc/handlers.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
+// In a packaged build the code lives inside app.asar, so walking up from the
+// module directory cannot find the registry. It ships as an extra resource
+// instead. Set before any core module reads it — registry lookup is lazy.
+if (app.isPackaged) {
+  process.env.AGENTPACK_REGISTRY ??= join(process.resourcesPath, 'registry')
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1180,
