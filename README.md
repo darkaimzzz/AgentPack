@@ -41,8 +41,8 @@ DETECT  →  RECOMMEND  →  COMPILE  →  INSTALL  →  VALIDATE  →  ROLLBACK
 ```
 
 1. **Detect** — which supported agents are installed, and where they keep their config.
-2. **Scan** — read `package.json` and marker files to identify the project stack.
-   Deterministic rules only; no LLM decides what you get.
+2. **Scan** — read every `package.json` (including monorepo workspaces) plus marker files
+   to identify the project stack. Deterministic rules only; no LLM decides what you get.
 3. **Compile** — turn one `Capability` into each agent's native config shape.
 4. **Install** — back up every config first, then write.
 5. **Validate** — start the MCP server over stdio and ask it `tools/list`.
@@ -53,7 +53,7 @@ DETECT  →  RECOMMEND  →  COMPILE  →  INSTALL  →  VALIDATE  →  ROLLBACK
 
 ## For teammates — running the prebuilt app
 
-Grab **`AgentPack-0.1.0-win-x64.exe`** (~96 MB, Windows x64). It is portable: no
+Grab **`AgentPack-1.0.0-win-x64.exe`** (~96 MB, Windows x64). It is portable: no
 install, no admin rights, nothing added to your PATH. Double-click it.
 
 **Windows will warn you.** The build is not code-signed, so SmartScreen shows
@@ -70,7 +70,7 @@ first run, point it at a sandbox:
 mkdir $env:TEMP\ap\.codex, $env:TEMP\ap\.claude, $env:TEMP\ap\.config\opencode
 copy $env:USERPROFILE\.claude.json $env:TEMP\ap\
 copy $env:USERPROFILE\.codex\config.toml $env:TEMP\ap\.codex\
-$env:AGENTPACK_HOME="$env:TEMP\ap"; .\AgentPack-0.1.0-win-x64.exe
+$env:AGENTPACK_HOME="$env:TEMP\ap"; .\AgentPack-1.0.0-win-x64.exe
 ```
 
 Everything then reads and writes under that folder only.
@@ -124,7 +124,7 @@ node electron/core/cli.ts import my-setup.json
 Checks:
 
 ```bash
-npm run check      # 28 engine self-checks, in a temp sandbox
+npm run check      # 50 engine self-checks, in a temp sandbox
 npm run smoke      # loads the real window, exercises preload + IPC headlessly
 npm run rehearse   # runs the whole golden path 3x, asserts byte-identical restore
 ```
@@ -167,7 +167,7 @@ open marketplace.
   "name": "Playwright",
   "type": "mcp",
   "source": "Microsoft — npm @playwright/mcp",
-  "install": { "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--headless"] },
+  "install": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.80", "--headless"] },
   "supportedAgents": ["claude", "codex", "opencode"]
 }
 ```
@@ -179,13 +179,23 @@ Capabilities may declare:
 - **`secrets`** — environment variables the user supplies. Kept in memory, injected only
   where needed, and redacted from logs.
 
-| Capability | Credentials | Tools |
-|---|---|---|
-| `playwright` | none | 24 |
-| `github` | one PAT | 26 |
-| `filesystem` | none | 14 |
-| `supabase` | project ref + token | 13 |
-| `sequential-thinking` | none | 1 |
+| Capability | Kind | Credentials | Tools |
+|---|---|---|---|
+| `playwright` | MCP | none | 24 |
+| `github` | MCP | one PAT | 26 |
+| `filesystem` | MCP | none | 14 |
+| `supabase` | MCP | project ref + token | 13 |
+| `context7` | MCP | none | 2 |
+| `sequential-thinking` | MCP | none | 1 |
+| `superpowers` | plugin | none | — |
+| `claude-mem` | plugin | none | — |
+| `plannotator` | plugin | none | — |
+| `beads` | plugin | needs the `bd` CLI | — |
+
+**MCP servers** run as separate processes and work on all three agents.
+**Plugins** load from a git marketplace inside the agent — Claude Code and Codex only;
+OpenCode has no marketplace system. Plugins report as *configured*, never *verified*:
+there is no server to start, so we do not claim a check we cannot perform.
 
 ---
 
@@ -232,5 +242,6 @@ Honesty matters more than a clean demo, so:
 | 2 — Project detection + recommendations | ✅ |
 | 3 — Electron desktop UI | ✅ |
 | 4 — Hardening, rehearsal harness, pack export/import | ✅ |
+| 1.0 — Plugins, packaged Windows build, real-world stack detection | ✅ |
 
 Windows desktop is the target platform; the engine itself is platform-neutral.
