@@ -75,6 +75,14 @@ export type Capability = {
   supportedAgents: AgentKey[]
 }
 
+/** A named set of capabilities that should be active (CLM, PRD §11). */
+export type CapabilityProfile = {
+  id: string
+  name: string
+  description?: string
+  activeCapabilityIds: string[]
+}
+
 export type Pack = {
   id: string
   name: string

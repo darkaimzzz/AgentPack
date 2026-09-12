@@ -201,4 +201,15 @@ export const codex: AgentAdapter = {
   isEmpty() {
     return Object.keys(servers(this.configPath())).length === 0
   },
+
+  validate() {
+    const raw = read(this.configPath())
+    if (!raw) return { ok: true }
+    try {
+      parseToml(raw)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message.split('\n')[0] }
+    }
+  },
 }

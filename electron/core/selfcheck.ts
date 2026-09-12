@@ -23,6 +23,7 @@ const ledger = await import('./installer/ledger.ts')
 const { estimateCost, measureCost, totalCost } = await import('./clm/cost.ts')
 const { deactivate, activate, runtimeState, listRuntime, reconcile, log } = await import('./clm/state.ts')
 const dormantStore = await import('./clm/dormant.ts')
+const { profiles, planProfile, applyProfile, currentProfile } = await import('./clm/profiles.ts')
 
 const tests: Array<[string, () => void | Promise<void>]> = []
 const test = (name: string, fn: () => void | Promise<void>) => tests.push([name, fn])
@@ -902,6 +903,104 @@ test('CLM listRuntime reflects real config state', async () => {
   assert.equal(codex.state, 'active')
   // Plugins are listed for agents that host them, but never for OpenCode.
   assert.ok(!recs.some((r) => r.capability.type === 'plugin' && r.agent === 'opencode'))
+})
+
+// --- CLM: profiles (Phase 3) -------------------------------------------------
+
+test('CLM profiles load from registry data and resolve', () => {
+  const ps = profiles()
+  assert.ok(ps.length >= 2, 'at least two profiles required (PRD §4.6)')
+  const known = new Set(capabilities().map((c) => c.id))
+  for (const p of ps) {
+    assert.ok(p.id && p.name, `profile ${p.id} malformed`)
+    for (const id of p.activeCapabilityIds) {
+      assert.ok(known.has(id), `profile ${p.id} names unknown capability ${id}`)
+    }
+  }
+})
+
+test('CLM profile plan computes the right diff without changing anything', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright', 'github'], agents: ['claude'], projectDir: sandbox })
+  const before = readFileSync(join(sandbox, '.claude.json'), 'utf8')
+
+  const plan = planProfile('frontend', ['claude'])
+  // frontend wants playwright active, github dormant.
+  assert.ok(plan.deactivate.some((d) => d.capabilityId === 'github'), 'github should be deactivated')
+  assert.ok(plan.unchanged.some((u) => u.capabilityId === 'playwright'), 'playwright is already active')
+  assert.ok(!plan.activate.some((a) => a.capabilityId === 'supabase'),
+    'a capability that was never installed cannot be activated')
+  assert.ok(plan.unavailable.some((u) => u.capabilityId === 'context7'),
+    'a wanted-but-missing capability must be surfaced, not silently skipped')
+  assert.equal(readFileSync(join(sandbox, '.claude.json'), 'utf8'), before, 'planning must not mutate')
+})
+
+test('CLM applying a profile really changes the config', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright', 'github'], agents: ['claude'], projectDir: sandbox })
+  const r = applyProfile('frontend', ['claude'])
+  assert.equal(r.status, 'ok', JSON.stringify(r.results.filter((x) => !x.success)))
+  assert.equal(runtimeState('github', 'claude'), 'dormant')
+  assert.equal(runtimeState('playwright', 'claude'), 'active')
+  assert.equal(adapters.claude.read(getCapability('github')), null, 'github still in the live config')
+  // And it is reversible.
+  assert.equal(applyProfile('backend', ['claude']).status, 'ok')
+  assert.equal(runtimeState('github', 'claude'), 'active')
+  assert.equal(runtimeState('playwright', 'claude'), 'dormant')
+})
+
+test('CLM minimal profile deactivates everything managed', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright', 'context7'], agents: ['claude'], projectDir: sandbox })
+  assert.equal(applyProfile('minimal', ['claude']).status, 'ok')
+  for (const id of ['playwright', 'context7']) {
+    assert.equal(runtimeState(id, 'claude'), 'dormant', `${id} should be dormant under minimal`)
+  }
+})
+
+const clearDormant = () => {
+  for (const e of dormantStore.entries()) dormantStore.drop(e.capabilityId, e.agent)
+}
+
+test('CLM reports a partial profile failure as partial, not success', async () => {
+  seed()
+  clearDormant()
+  await install({ capabilityIds: ['github'], agents: ['claude', 'codex'], projectDir: sandbox })
+
+  // Corrupt ONE agent's config. Applying a profile must then fail for that
+  // agent, succeed for the other, and report the result as partial.
+  const codexPath = adapters.codex.configPath()
+  const good = readFileSync(codexPath, 'utf8')
+  writeFileSync(codexPath, 'this is not = valid toml [[[')
+  try {
+    const r = applyProfile('frontend', ['claude', 'codex']) // github -> dormant
+    assert.notEqual(r.status, 'ok', 'a failed mutation must not be reported as ok')
+    assert.equal(r.status, 'partial')
+    const bad = r.results.find((x) => x.agent === 'codex' && !x.success)
+    assert.ok(bad, 'the corrupt agent should have been reported as failed, not skipped')
+    assert.match(bad!.error!, /could not be parsed/i)
+    assert.ok(planProfile('frontend', ['claude', 'codex']).blocked.some((b) => b.agent === 'codex'),
+      'the plan should name the unreadable agent')
+    assert.ok(r.results.some((x) => x.agent === 'claude' && x.success),
+      'the healthy agent should still have been changed')
+  } finally {
+    writeFileSync(codexPath, good)
+  }
+})
+
+test('CLM currentProfile does not claim a match when nothing is manageable', () => {
+  seed()
+  clearDormant() // nothing live, nothing stashed
+  assert.equal(currentProfile(['claude']), null,
+    'with nothing manageable, every profile would trivially match the empty set')
+})
+
+test('CLM currentProfile identifies the live profile', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright', 'context7', 'github'], agents: ['claude'], projectDir: sandbox })
+  applyProfile('frontend', ['claude'])
+  const p = currentProfile(['claude'])
+  assert.equal(p?.id, 'frontend', `expected frontend, got ${p?.id ?? 'null'}`)
 })
 
 // --- run --------------------------------------------------------------------

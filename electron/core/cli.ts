@@ -14,6 +14,8 @@
 //   node electron/core/cli.ts clm measure [--force]     # probe + cache costs
 //   node electron/core/cli.ts clm on|off <capability> [agent]
 //   node electron/core/cli.ts clm log
+//   node electron/core/cli.ts clm profiles
+//   node electron/core/cli.ts clm use <profile> [--dry]
 import { detectAgents, adapters } from './agents/index.ts'
 import { capabilities, packs, getPack } from './capabilities/registry.ts'
 import { scanProject } from './detection/project.ts'
@@ -25,6 +27,7 @@ import {
 } from './capabilities/manifest.ts'
 import { listRuntime, setState, reconcile, log as mutationLog } from './clm/state.ts'
 import { measureCost, cachedCost, totalCost } from './clm/cost.ts'
+import { profiles, planProfile, applyProfile, currentProfile } from './clm/profiles.ts'
 import type { AgentKey, ProgressEvent } from './types.ts'
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`
@@ -242,6 +245,35 @@ if (cmd === 'detect') {
       else { bad++; console.log(bad_(`${label} — ${r.error}`)) }
     }
     process.exit(bad ? 1 : 0)
+  } else if (sub === 'profiles') {
+    const active = currentProfile()
+    for (const p of profiles()) {
+      const mark = active?.id === p.id ? green('●') : ' '
+      console.log(`${mark} ${p.id.padEnd(12)} ${p.activeCapabilityIds.join(', ') || dim('(nothing active)')}`)
+      if (p.description) console.log(`  ${dim(p.description)}`)
+    }
+    if (!active) console.log(dim('\ncurrent state matches no profile'))
+  } else if (sub === 'use') {
+    const id = rest[1]
+    if (!id) { console.error('usage: cli.ts clm use <profile> [--dry]'); process.exit(2) }
+    const plan = planProfile(id)
+    console.log(`Profile: ${plan.profile.name}\n`)
+    for (const a of plan.activate) console.log(green(`  + ${a.capabilityId} ${dim('→ ' + a.agent)}`))
+    for (const d of plan.deactivate) console.log(`  - ${d.capabilityId} ${dim('→ ' + d.agent)}`)
+    for (const u of plan.unavailable) console.log(dim(`  ! ${u.capabilityId} → ${u.agent} (not installed — cannot activate)`))
+    for (const b of plan.blocked) console.log(bad_(`${b.agent}: config unreadable — ${b.error}`))
+    if (!plan.activate.length && !plan.deactivate.length) console.log(dim('  nothing to change'))
+    if (rest.includes('--dry')) process.exit(0)
+
+    const r = applyProfile(id)
+    console.log()
+    for (const m of r.results.filter((x) => !x.success)) {
+      console.log(bad_(`${m.capabilityId} / ${m.agent}: ${m.error}`))
+    }
+    console.log(r.status === 'ok' ? ok(`applied ${r.results.length} change(s)`)
+      : r.status === 'partial' ? `${red('partial')} — some changes failed; see above`
+      : bad_('no changes applied'))
+    process.exit(r.status === 'ok' ? 0 : 1)
   } else if (sub === 'log') {
     for (const e of mutationLog().slice(-25)) {
       console.log(`${dim(e.at.slice(11, 19))}  ${e.capabilityId.padEnd(20)} ${e.agent.padEnd(9)} ${e.from} → ${e.to} ${e.success ? green('ok') : red('failed: ' + e.error)}`)

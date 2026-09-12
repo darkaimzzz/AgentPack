@@ -109,4 +109,15 @@ export const claude: AgentAdapter = {
     if (!existsSync(p)) return true
     return Object.keys(load(p).mcpServers ?? {}).length === 0
   },
+
+  validate() {
+    const p = this.configPath()
+    if (!existsSync(p)) return { ok: true } // nothing there is not corruption
+    try {
+      readJson(p)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  },
 }

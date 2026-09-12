@@ -64,8 +64,27 @@ async function smokeTest(win: BrowserWindow) {
     const agents = await api.detectAgents()
     const analysis = await api.analyze(${JSON.stringify(process.cwd())})
     const rendered = document.querySelectorAll('.card').length
+
+    // Switch to the Capability Load Manager and let it load, so the smoke test
+    // covers the CLM screen rather than only the first step of the wizard.
+    const manage = [...document.querySelectorAll('.modebtn')].find(b => b.textContent.trim() === 'Manage')
+    if (manage) manage.click()
+    await new Promise(r => setTimeout(r, 700))
+    const clmHeading = document.querySelector('h2')?.textContent
+    const clmRows = document.querySelectorAll('.clm-row').length
+    const clmStats = [...document.querySelectorAll('.clm-summary .stat .k')].map(e => e.textContent)
+    const clmView = await api.clmView()
+
     return {
       ok: true,
+      clm: {
+        heading: clmHeading,
+        rows: clmRows,
+        stats: clmStats,
+        profiles: (await api.clmProfiles()).map(p => p.id),
+        summaryKeys: Object.keys(clmView.summary),
+        currentProfileId: clmView.currentProfileId,
+      },
       methods: Object.keys(api).sort(),
       agents: agents.filter(a => a.detected).map(a => a.name),
       signals: analysis.scan.signals.map(s => s.id),

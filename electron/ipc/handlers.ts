@@ -4,7 +4,10 @@ import { capabilities, packs } from '../core/capabilities/registry.ts'
 import { scanProject } from '../core/detection/project.ts'
 import { recommend, alsoAvailable } from '../core/recommendations/rules.ts'
 import { install, rollback, type InstallRequest } from '../core/installer/install.ts'
-import type { ProgressEvent } from '../core/types.ts'
+import { clmView, measureAll } from '../core/clm/view.ts'
+import { setState, log as mutationLog } from '../core/clm/state.ts'
+import { profiles, applyProfile, planProfile } from '../core/clm/profiles.ts'
+import type { AgentKey, ProgressEvent } from '../core/types.ts'
 
 /**
  * Every privileged operation lives here, behind a named channel (CLAUDE.md §6).
@@ -36,4 +39,19 @@ export function registerHandlers(win: BrowserWindow) {
   ipcMain.handle('install:rollback', (_e, ledgerId?: string) => rollback(ledgerId))
 
   ipcMain.handle('shell:reveal', (_e, path: string) => shell.showItemInFolder(path))
+
+  // --- Capability Load Manager -------------------------------------------
+  // Structured data only. The renderer can ask for a state change by name; it
+  // cannot execute anything (PRD §13).
+  ipcMain.handle('clm:view', () => clmView())
+  ipcMain.handle('clm:profiles', () => profiles())
+  ipcMain.handle('clm:plan', (_e, profileId: string) => planProfile(profileId))
+  ipcMain.handle('clm:applyProfile', (_e, profileId: string) => applyProfile(profileId))
+  ipcMain.handle('clm:measure', (_e, projectDir?: string) => measureAll(projectDir ?? process.cwd()))
+  ipcMain.handle('clm:log', () => mutationLog().slice(-100))
+  ipcMain.handle(
+    'clm:setState',
+    (_e, req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }) =>
+      setState(req.capabilityId, req.agent, req.state, { source: 'manual' }),
+  )
 }

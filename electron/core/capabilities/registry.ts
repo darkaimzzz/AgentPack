@@ -25,6 +25,9 @@ function findRegistry(): string {
 let rootCache: string | null = null
 const root = () => (rootCache ??= findRegistry())
 
+/** Where registry data lives. Shared with CLM profiles. */
+export const registryRoot = root
+
 const loadDir = <T>(sub: string): T[] =>
   readdirSync(join(root(), sub))
     .filter((f) => f.endsWith('.json'))

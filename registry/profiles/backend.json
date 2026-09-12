@@ -1,0 +1,6 @@
+{
+  "id": "backend",
+  "name": "Backend",
+  "description": "Database inspection and repository tooling.",
+  "activeCapabilityIds": ["supabase", "github", "filesystem"]
+}

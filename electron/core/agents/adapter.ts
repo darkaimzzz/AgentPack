@@ -35,6 +35,15 @@ export type AgentAdapter = {
   remove(cap: Capability): void
   /** True when the config holds no capability entries at all. */
   isEmpty(): boolean
+  /**
+   * Does the config file parse?
+   *
+   * Separate from isEmpty() on purpose: the readers deliberately swallow parse
+   * errors so a corrupt file cannot crash a listing, which means "no entries"
+   * and "unreadable" look identical to everything else. This one does not
+   * swallow, so callers can tell a broken config from an empty one.
+   */
+  validate(): { ok: boolean; error?: string }
 
   /**
    * Plugin support. Only agents with a git-marketplace model implement these —

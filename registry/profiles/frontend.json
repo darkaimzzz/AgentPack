@@ -1,0 +1,6 @@
+{
+  "id": "frontend",
+  "name": "Frontend",
+  "description": "Browser automation, scoped file access and version-accurate docs.",
+  "activeCapabilityIds": ["playwright", "filesystem", "context7"]
+}

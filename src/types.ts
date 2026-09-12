@@ -16,6 +16,7 @@ export type Capability = {
   description: string
   source: string
   install?: { command: string; args: string[] }
+  requires?: { binaries?: string[]; note?: string }
   plugin?: { marketplace: string; repo: string; name: string }
   secrets?: Array<{ key: string; label: string; help?: string }>
   inputs?: Array<{ key: string; label: string; help?: string }>
@@ -66,7 +67,73 @@ export type ProgressEvent =
   | { kind: 'log'; stream: 'stdout' | 'stderr'; line: string }
   | { kind: 'agent'; agent: AgentKey; status: InstallResult['status']; detail?: string }
 
+export type CapabilityRuntimeState = 'active' | 'dormant' | 'unknown'
+
+export type CapabilityContextCost = {
+  toolCount: number
+  serializedChars: number
+  estimatedTokens: number
+  measuredAt: string
+  source: 'measured' | 'unavailable'
+  note?: string
+}
+
+export type CapabilityProfile = {
+  id: string
+  name: string
+  description?: string
+  activeCapabilityIds: string[]
+}
+
+export type ClmRow = {
+  capability: Capability
+  agents: Array<{ agent: AgentKey; agentName: string; state: CapabilityRuntimeState }>
+  cost: CapabilityContextCost | null
+  anyActive: boolean
+  anyDormant: boolean
+  manageable: boolean
+}
+
+export type ClmView = {
+  rows: ClmRow[]
+  summary: {
+    installedCount: number
+    activeCount: number
+    activeTools: number
+    allTools: number
+    activeTokens: number
+    allTokens: number
+    unmeasurable: number
+  }
+  currentProfileId: string | null
+  reconciled: number
+}
+
+export type RuntimeMutationResult = {
+  success: boolean
+  capabilityId: string
+  agent: AgentKey
+  from: CapabilityRuntimeState
+  to: CapabilityRuntimeState
+  changedFiles: string[]
+  backupPath?: string
+  noop?: boolean
+  error?: string
+}
+
+export type ProfileResult = {
+  profile: CapabilityProfile
+  results: RuntimeMutationResult[]
+  status: 'ok' | 'partial' | 'failed'
+}
+
 export type AgentPackApi = {
+  clmView(): Promise<ClmView>
+  clmProfiles(): Promise<CapabilityProfile[]>
+  clmApplyProfile(profileId: string): Promise<ProfileResult>
+  clmMeasure(projectDir?: string): Promise<number>
+  clmSetState(req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }): Promise<RuntimeMutationResult>
+  clmLog(): Promise<unknown[]>
   detectAgents(): Promise<DetectedAgent[]>
   listRegistry(): Promise<{ capabilities: Capability[]; packs: Pack[] }>
   analyze(dir: string): Promise<Analysis>

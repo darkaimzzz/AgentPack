@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Dashboard from './clm/Dashboard.tsx'
 import type {
   AgentKey, Analysis, Capability, DetectedAgent, InstallReport, ProgressEvent,
 } from './types.ts'
@@ -22,6 +23,9 @@ const BACK: Partial<Record<Step, Step>> = {
 }
 
 export default function App() {
+  // Two top-level modes. Install is the wizard; Manage is the Capability Load
+  // Manager, which is a dashboard and does not belong in a step flow.
+  const [mode, setMode] = useState<'install' | 'manage'>('install')
   const [step, setStep] = useState<Step>('detect')
   const [agents, setAgents] = useState<DetectedAgent[]>([])
   const [dir, setDir] = useState('')
@@ -112,17 +116,26 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">Agent<span>Pack</span></div>
-        <div className="tagline">cross-agent package manager</div>
-        <nav className="steps">
-          {STEPS.map(([s, label], i) => (
-            <div key={s} className={`step ${s === step ? 'active' : i < stepIndex ? 'done' : ''}`}>
-              {i < stepIndex ? '✓ ' : ''}{label}
-            </div>
+        <div className="modeswitch">
+          {(['install', 'manage'] as const).map((m) => (
+            <button key={m} className={`modebtn ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>
+              {m === 'install' ? 'Install' : 'Manage'}
+            </button>
           ))}
-        </nav>
+        </div>
+        {mode === 'install' && (
+          <nav className="steps">
+            {STEPS.map(([s, label], i) => (
+              <div key={s} className={`step ${s === step ? 'active' : i < stepIndex ? 'done' : ''}`}>
+                {i < stepIndex ? '✓ ' : ''}{label}
+              </div>
+            ))}
+          </nav>
+        )}
       </header>
 
       <main>
+        {mode === 'manage' ? <Dashboard /> : (
         <div className="wrap">
           {error && (
             <div className="banner bad">
@@ -143,9 +156,10 @@ export default function App() {
             <Report report={report} targets={targets} rolledBack={rolledBack} events={events} />
           )}
         </div>
+        )}
       </main>
 
-      <Footer
+      {mode === 'install' && <Footer
         step={step} setStep={setStep} busy={busy} targets={targets} analysis={analysis}
         chosen={chosen} values={values} dir={dir} report={report} rolledBack={rolledBack}
         onScan={async () => {
@@ -168,7 +182,7 @@ export default function App() {
             setBusy(false)
           }
         }}
-      />
+      />}
     </div>
   )
 }

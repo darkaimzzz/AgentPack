@@ -55,12 +55,12 @@ function appendLog(e: MutationLogEntry) {
 
 /**
  * Does this agent's config still parse?
- * isEmpty() reads and parses the whole file, so it doubles as a validity check.
+ * Delegates to the adapter's validate(), which does not swallow parse errors —
+ * unlike the readers, where "unreadable" and "empty" look the same.
  */
 export function validateConfig(adapter: AgentAdapter): { ok: boolean; error?: string } {
   try {
-    adapter.isEmpty()
-    return { ok: true }
+    return adapter.validate()
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }

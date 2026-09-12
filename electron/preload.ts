@@ -13,6 +13,15 @@ const api = {
   rollback: (ledgerId?: string) => ipcRenderer.invoke('install:rollback', ledgerId),
   reveal: (path: string) => ipcRenderer.invoke('shell:reveal', path),
 
+  // Capability Load Manager
+  clmView: () => ipcRenderer.invoke('clm:view'),
+  clmProfiles: () => ipcRenderer.invoke('clm:profiles'),
+  clmPlan: (profileId: string) => ipcRenderer.invoke('clm:plan', profileId),
+  clmApplyProfile: (profileId: string) => ipcRenderer.invoke('clm:applyProfile', profileId),
+  clmMeasure: (projectDir?: string) => ipcRenderer.invoke('clm:measure', projectDir),
+  clmSetState: (req: unknown) => ipcRenderer.invoke('clm:setState', req),
+  clmLog: () => ipcRenderer.invoke('clm:log'),
+
   /** Subscribe to live install progress. Returns an unsubscribe function. */
   onProgress: (cb: (e: unknown) => void) => {
     const handler = (_e: unknown, payload: unknown) => cb(payload)

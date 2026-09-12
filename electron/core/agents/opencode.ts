@@ -73,4 +73,15 @@ export const opencode: AgentAdapter = {
     if (!existsSync(p)) return true
     return Object.keys(load(p).mcp ?? {}).length === 0
   },
+
+  validate() {
+    const p = this.configPath()
+    if (!existsSync(p)) return { ok: true }
+    try {
+      readJsonc(p)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  },
 }
