@@ -34,6 +34,35 @@ adapter layer is the translation between them.
 
 ---
 
+## Capability Load Manager
+
+Installed doesn't have to mean loaded. Every active MCP server carries its tool
+schemas in the agent's context every session — measured across our registry,
+**80 tools ≈ 16,771 estimated tokens** if everything is on at once.
+
+CLM keeps capabilities installed but **dormant**: removed from the agent's live
+config, credentials preserved, one click to bring back.
+
+```
+Active tools        14 / 80
+Estimated context   ~3,243 / ~16,771 tokens
+Estimated reduction 81%
+```
+
+Profiles (`Frontend`, `Backend`, `Minimal`) switch whole sets at once, and one
+file-pattern trigger brings a capability back automatically — touch a
+`*.spec.ts` and Playwright activates.
+
+Two things it does not claim:
+
+- Figures are **estimates** — serialized schema characters ÷ 4, not billed tokens.
+- A change applies to the **next** agent session. Claude Code reads MCP config at
+  startup and has no disable flag, so a running session keeps the tools it
+  started with. The config change itself is provable immediately via
+  `claude mcp list`.
+
+---
+
 ## How it works
 
 ```
@@ -53,7 +82,7 @@ DETECT  →  RECOMMEND  →  COMPILE  →  INSTALL  →  VALIDATE  →  ROLLBACK
 
 ## For teammates — running the prebuilt app
 
-Grab **`AgentPack-1.0.0-win-x64.exe`** (~96 MB, Windows x64). It is portable: no
+Grab **`AgentPack-1.1.0-win-x64.exe`** (~96 MB, Windows x64). It is portable: no
 install, no admin rights, nothing added to your PATH. Double-click it.
 
 **Windows will warn you.** The build is not code-signed, so SmartScreen shows
@@ -70,7 +99,7 @@ first run, point it at a sandbox:
 mkdir $env:TEMP\ap\.codex, $env:TEMP\ap\.claude, $env:TEMP\ap\.config\opencode
 copy $env:USERPROFILE\.claude.json $env:TEMP\ap\
 copy $env:USERPROFILE\.codex\config.toml $env:TEMP\ap\.codex\
-$env:AGENTPACK_HOME="$env:TEMP\ap"; .\AgentPack-1.0.0-win-x64.exe
+$env:AGENTPACK_HOME="$env:TEMP\ap"; .\AgentPack-1.1.0-win-x64.exe
 ```
 
 Everything then reads and writes under that folder only.
@@ -119,12 +148,19 @@ node electron/core/cli.ts status
 # export what you have, and reproduce it on another machine
 node electron/core/cli.ts export my-setup.json
 node electron/core/cli.ts import my-setup.json
+
+# Capability Load Manager — what each capability costs in context
+node electron/core/cli.ts clm              # states, cost, reduction
+node electron/core/cli.ts clm measure      # probe each server once, then cache
+node electron/core/cli.ts clm off playwright
+node electron/core/cli.ts clm use frontend # apply a profile
+node electron/core/cli.ts clm watch .      # auto-activate on matching files
 ```
 
 Checks:
 
 ```bash
-npm run check      # 50 engine self-checks, in a temp sandbox
+npm run check      # 76 engine self-checks, in a temp sandbox
 npm run smoke      # loads the real window, exercises preload + IPC headlessly
 npm run rehearse   # runs the whole golden path 3x, asserts byte-identical restore
 ```
@@ -243,5 +279,6 @@ Honesty matters more than a clean demo, so:
 | 3 — Electron desktop UI | ✅ |
 | 4 — Hardening, rehearsal harness, pack export/import | ✅ |
 | 1.0 — Plugins, packaged Windows build, real-world stack detection | ✅ |
+| 1.1 — Capability Load Manager: context cost, dormancy, profiles, triggers | ✅ |
 
 Windows desktop is the target platform; the engine itself is platform-neutral.
