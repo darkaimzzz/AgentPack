@@ -3,6 +3,45 @@
 
 export type AgentKey = 'claude' | 'codex' | 'opencode'
 
+/** One entry from an MCP server's tools/list response. */
+export type ToolDefinition = {
+  name: string
+  description?: string
+  inputSchema?: unknown
+  [key: string]: unknown
+}
+
+/** Whether a capability is currently exposed to an agent (CLM). */
+export type CapabilityRuntimeState = 'active' | 'dormant' | 'unknown'
+
+/**
+ * Estimated context cost. "Estimated" is load-bearing: this is serialized
+ * schema size divided by four, not billed API tokens.
+ */
+export type CapabilityContextCost = {
+  toolCount: number
+  serializedChars: number
+  estimatedTokens: number
+  measuredAt: string
+  /** measured = probed live; unavailable = nothing to measure (e.g. plugins). */
+  source: 'measured' | 'unavailable'
+  note?: string
+}
+
+/** Result of a CLM state change (PRD §4.9). */
+export type RuntimeMutationResult = {
+  success: boolean
+  capabilityId: string
+  agent: AgentKey
+  from: CapabilityRuntimeState
+  to: CapabilityRuntimeState
+  changedFiles: string[]
+  backupPath?: string
+  /** True when the capability was already in the requested state. */
+  noop?: boolean
+  error?: string
+}
+
 export type Capability = {
   id: string
   name: string

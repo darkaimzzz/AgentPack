@@ -20,6 +20,9 @@ const { redact, resolveCommand } = await import('./installer/run.ts')
 const { scanProject } = await import('./detection/project.ts')
 const { recommend, RULES } = await import('./recommendations/rules.ts')
 const ledger = await import('./installer/ledger.ts')
+const { estimateCost, measureCost, totalCost } = await import('./clm/cost.ts')
+const { deactivate, activate, runtimeState, listRuntime, reconcile, log } = await import('./clm/state.ts')
+const dormantStore = await import('./clm/dormant.ts')
 
 const tests: Array<[string, () => void | Promise<void>]> = []
 const test = (name: string, fn: () => void | Promise<void>) => tests.push([name, fn])
@@ -750,6 +753,155 @@ test('every registry entry declares exactly one install mechanism', () => {
         `${c.id}: OpenCode has no git-marketplace plugin system, so it must not be listed`)
     }
   }
+})
+
+// --- CLM: context cost (Phase 1) --------------------------------------------
+
+test('CLM cost estimate is deterministic and arithmetically right', () => {
+  const tools = [
+    { name: 'a', description: 'x'.repeat(100), inputSchema: { type: 'object' } },
+    { name: 'b', description: 'y'.repeat(50), inputSchema: { type: 'object' } },
+  ]
+  const c1 = estimateCost(tools)
+  const c2 = estimateCost(tools)
+  assert.equal(c1.toolCount, 2)
+  assert.equal(c1.serializedChars, JSON.stringify(tools).length)
+  assert.equal(c1.estimatedTokens, Math.round(c1.serializedChars / 4))
+  assert.equal(c1.source, 'measured')
+  assert.equal(c1.serializedChars, c2.serializedChars, 'same input must give the same number')
+})
+
+test('CLM reports plugins as not measurable rather than inventing a number', async () => {
+  const cost = await measureCost(getCapability('superpowers'), { projectDir: sandbox })
+  assert.equal(cost.source, 'unavailable')
+  assert.equal(cost.estimatedTokens, 0, 'an unmeasurable capability must not report a token count')
+  assert.match(cost.note!, /not measurable/i)
+})
+
+test('CLM totals ignore unmeasurable capabilities', () => {
+  const t = totalCost([
+    { toolCount: 3, serializedChars: 400, estimatedTokens: 100, measuredAt: '', source: 'measured' },
+    { toolCount: 0, serializedChars: 0, estimatedTokens: 0, measuredAt: '', source: 'unavailable' },
+  ])
+  assert.equal(t.toolCount, 3)
+  assert.equal(t.estimatedTokens, 100)
+  assert.equal(t.unmeasurable, 1)
+})
+
+// --- CLM: state engine (Phase 2) --------------------------------------------
+
+const clmSeed = async () => {
+  seed()
+  // A credentialed capability is the hard case for dormancy.
+  await install({
+    capabilityIds: ['supabase'],
+    agents: ['claude', 'codex', 'opencode'],
+    projectDir: sandbox,
+    inputs: { SUPABASE_PROJECT_REF: 'clmref' },
+    secrets: { SUPABASE_ACCESS_TOKEN: 'sbp_clm_secret' },
+  })
+}
+
+test('CLM deactivate removes the entry and reports dormant', async () => {
+  await clmSeed()
+  assert.equal(runtimeState('supabase', 'claude'), 'active')
+  const r = deactivate('supabase', 'claude')
+  assert.equal(r.success, true, r.error)
+  assert.equal(r.to, 'dormant')
+  assert.deepEqual(r.changedFiles, [adapters.claude.configPath()])
+  assert.equal(adapters.claude.read(getCapability('supabase')), null, 'entry still in the live config')
+  assert.equal(runtimeState('supabase', 'claude'), 'dormant')
+})
+
+test('CLM dormancy preserves the credential and restores it exactly', async () => {
+  await clmSeed()
+  const before = adapters.codex.read(getCapability('supabase'))!
+  assert.equal(before.env.SUPABASE_ACCESS_TOKEN, 'sbp_clm_secret')
+
+  assert.equal(deactivate('supabase', 'codex').success, true)
+  const stash = dormantStore.get('supabase', 'codex')
+  assert.ok(stash, 'nothing stashed — the credential would be lost')
+  assert.equal(stash!.entry.env.SUPABASE_ACCESS_TOKEN, 'sbp_clm_secret')
+
+  const back = activate('supabase', 'codex')
+  assert.equal(back.success, true, back.error)
+  const after = adapters.codex.read(getCapability('supabase'))!
+  assert.deepEqual(after, before, 'restored entry differs from the original')
+  assert.equal(dormantStore.get('supabase', 'codex'), null, 'stash should be dropped once restored')
+})
+
+test('CLM mutations are idempotent in both directions', async () => {
+  await clmSeed()
+  assert.equal(deactivate('supabase', 'opencode').success, true)
+  const second = deactivate('supabase', 'opencode')
+  assert.equal(second.success, true, 'second deactivate should be a no-op, not an error')
+  assert.equal(second.noop, true)
+
+  assert.equal(activate('supabase', 'opencode').success, true)
+  const twice = activate('supabase', 'opencode')
+  assert.equal(twice.success, true, 'second activate should be a no-op')
+  assert.equal(twice.noop, true)
+  // Codex is the one that would throw on a blind rewrite; assert no duplication.
+  assert.ok(adapters.opencode.read(getCapability('supabase')))
+})
+
+test('CLM refuses to activate something it never stashed', async () => {
+  seed()
+  const r = activate('playwright', 'claude')
+  assert.equal(r.success, false)
+  assert.match(r.error!, /no dormant entry/i)
+})
+
+test('CLM leaves the config valid when a mutation fails', async () => {
+  await clmSeed()
+  const p = adapters.claude.configPath()
+  const before = readFileSync(p, 'utf8')
+  // Corrupt the config, then attempt a mutation: it must refuse, not compound it.
+  writeFileSync(p, '{ this is not json')
+  const r = deactivate('supabase', 'claude')
+  assert.equal(r.success, false)
+  assert.match(r.error!, /could not be parsed|not valid JSON/i)
+  writeFileSync(p, before) // restore for later tests
+})
+
+test('CLM reconcile prefers the live config over a stale stash', async () => {
+  await clmSeed()
+  // Pretend we recorded it dormant while it is in fact present in the config.
+  dormantStore.stash('supabase', 'claude', adapters.claude.read(getCapability('supabase'))!)
+  assert.ok(dormantStore.get('supabase', 'claude'))
+  const events = reconcile()
+  assert.ok(events.some((e) => e.capabilityId === 'supabase' && e.agent === 'claude'),
+    'stale stash should have been reconciled')
+  assert.equal(dormantStore.get('supabase', 'claude'), null, 'stale stash not dropped')
+  assert.ok(adapters.claude.read(getCapability('supabase')), 'reconcile must NEVER rewrite the live config')
+})
+
+test('CLM never writes a secret into the mutation log', async () => {
+  await clmSeed()
+  deactivate('supabase', 'claude')
+  activate('supabase', 'claude')
+  const raw = readFileSync(join(sandbox, '.agentpack', 'mutations.json'), 'utf8')
+  assert.ok(!raw.includes('sbp_clm_secret'), 'SECRET LEAKED INTO THE MUTATION LOG')
+  assert.ok(log().length > 0, 'mutations should be logged')
+})
+
+test('CLM declines to manage plugins', async () => {
+  seed()
+  const r = deactivate('superpowers', 'claude')
+  assert.equal(r.success, false)
+  assert.match(r.error!, /MCP servers only/i)
+})
+
+test('CLM listRuntime reflects real config state', async () => {
+  await clmSeed()
+  deactivate('supabase', 'claude')
+  const recs = listRuntime(['claude', 'codex'])
+  const claude = recs.find((r) => r.capability.id === 'supabase' && r.agent === 'claude')!
+  const codex = recs.find((r) => r.capability.id === 'supabase' && r.agent === 'codex')!
+  assert.equal(claude.state, 'dormant')
+  assert.equal(codex.state, 'active')
+  // Plugins are listed for agents that host them, but never for OpenCode.
+  assert.ok(!recs.some((r) => r.capability.type === 'plugin' && r.agent === 'opencode'))
 })
 
 // --- run --------------------------------------------------------------------

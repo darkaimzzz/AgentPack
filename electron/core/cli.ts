@@ -10,6 +10,10 @@
 //   node electron/core/cli.ts status             # what is configured right now
 //   node electron/core/cli.ts export [path]      # reusable manifest (no secrets)
 //   node electron/core/cli.ts import <path>
+//   node electron/core/cli.ts clm                       # runtime states + context cost
+//   node electron/core/cli.ts clm measure [--force]     # probe + cache costs
+//   node electron/core/cli.ts clm on|off <capability> [agent]
+//   node electron/core/cli.ts clm log
 import { detectAgents, adapters } from './agents/index.ts'
 import { capabilities, packs, getPack } from './capabilities/registry.ts'
 import { scanProject } from './detection/project.ts'
@@ -19,6 +23,8 @@ import { prewarm } from './installer/prewarm.ts'
 import {
   buildManifest, exportManifest, readManifest, installedCapabilities, manifestMissingSecrets,
 } from './capabilities/manifest.ts'
+import { listRuntime, setState, reconcile, log as mutationLog } from './clm/state.ts'
+import { measureCost, cachedCost, totalCost } from './clm/cost.ts'
 import type { AgentKey, ProgressEvent } from './types.ts'
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`
@@ -26,6 +32,7 @@ const red = (s: string) => `\x1b[31m${s}\x1b[0m`
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`
 const ok = (s: string) => `${green('✓')} ${s}`
 const bad = (s: string) => `${red('✗')} ${s}`
+const bad_ = bad
 
 const [, , cmd = 'detect', ...rest] = process.argv
 
@@ -205,6 +212,78 @@ if (cmd === 'detect') {
     }
   }
   process.exit(importOk ? 0 : 1)
+} else if (cmd === 'clm') {
+  const sub = rest[0] ?? 'list'
+
+  if (sub === 'measure') {
+    const force = rest.includes('--force')
+    console.log('Measuring context cost (probes each server once, then caches)\n')
+    for (const c of capabilities()) {
+      const cost = await measureCost(c, { projectDir: process.cwd(), force })
+      console.log(cost.source === 'measured'
+        ? ok(`${c.name.padEnd(22)} ${String(cost.toolCount).padStart(2)} tools  ~${cost.estimatedTokens.toLocaleString()} tokens ${dim(`(${cost.serializedChars.toLocaleString()} chars)`)}`)
+        : `  ${c.name.padEnd(22)} ${dim(cost.note ?? 'not measurable')}`)
+    }
+  } else if (sub === 'on' || sub === 'off') {
+    const capId = rest[1]
+    if (!capId) {
+      console.error('usage: cli.ts clm on|off <capability> [agent]')
+      process.exit(2)
+    }
+    const agentArg = rest[2] as AgentKey | undefined
+    const targets = agentArg
+      ? [agentArg]
+      : detectAgents().filter((a) => a.detected).map((a) => a.key as AgentKey)
+    let bad = 0
+    for (const agent of targets) {
+      const r = setState(capId, agent, sub === 'on' ? 'active' : 'dormant')
+      const label = `${adapters[agent].name.padEnd(13)} ${r.from} → ${r.to}`
+      if (r.success) console.log(ok(`${label}${r.noop ? dim(' (already)') : ''}`))
+      else { bad++; console.log(bad_(`${label} — ${r.error}`)) }
+    }
+    process.exit(bad ? 1 : 0)
+  } else if (sub === 'log') {
+    for (const e of mutationLog().slice(-25)) {
+      console.log(`${dim(e.at.slice(11, 19))}  ${e.capabilityId.padEnd(20)} ${e.agent.padEnd(9)} ${e.from} → ${e.to} ${e.success ? green('ok') : red('failed: ' + e.error)}`)
+    }
+  } else {
+    const events = reconcile()
+    for (const e of events) console.log(dim(`reconciled ${e.capabilityId}/${e.agent}: ${e.action}`))
+
+    const records = listRuntime()
+    const byCap = new Map<string, typeof records>()
+    for (const r of records) byCap.set(r.capability.id, [...(byCap.get(r.capability.id) ?? []), r])
+
+    const activeCosts = []
+    const allCosts = []
+    console.log('Capability Load Manager\n')
+    for (const [id, recs] of byCap) {
+      const cap = recs[0].capability
+      const cost = cachedCost(cap)
+      const active = recs.filter((r) => r.state === 'active').map((r) => r.agent)
+      const dorm = recs.filter((r) => r.state === 'dormant').map((r) => r.agent)
+      if (cost) {
+        allCosts.push(cost)
+        if (active.length) activeCosts.push(cost)
+      }
+      const costLabel = !cost ? dim('cost unknown — run: clm measure')
+        : cost.source === 'measured' ? `${cost.toolCount} tools · ~${cost.estimatedTokens.toLocaleString()} tokens`
+        : dim('not measurable')
+      const state = active.length ? green('ACTIVE ') : dorm.length ? '[2mDORMANT[0m' : dim('—      ')
+      console.log(`  ${state} ${cap.name.padEnd(22)} ${costLabel}`)
+      if (active.length) console.log(`          ${dim('active in: ' + active.join(', '))}`)
+      if (dorm.length) console.log(`          ${dim('dormant in: ' + dorm.join(', '))}`)
+    }
+
+    const all = totalCost(allCosts)
+    const now = totalCost(activeCosts)
+    if (all.estimatedTokens) {
+      const pct = Math.round((1 - now.estimatedTokens / all.estimatedTokens) * 100)
+      console.log(`\nActive tools        ${now.toolCount} / ${all.toolCount}`)
+      console.log(`Estimated context   ~${now.estimatedTokens.toLocaleString()} / ~${all.estimatedTokens.toLocaleString()} tokens`)
+      console.log(`Estimated reduction ${pct}%  ${dim('(estimate: serialized schema chars / 4, not billed tokens)')}`)
+    }
+  }
 } else {
   console.error(`unknown command: ${cmd}`)
   process.exit(2)

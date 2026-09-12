@@ -200,7 +200,9 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     } else {
       // Validate by starting the server ourselves. Agent-independent on purpose:
       // it proves the capability works rather than that a file parsed.
-      const p = await probe({ command: resolved.install!.command, args, env, secretValues })
+      const { toolDefinitions, ...p } = await probe({ command: resolved.install!.command, args, env, secretValues })
+      // toolDefinitions stay out of the report: they are large, and only the
+      // context-cost estimator needs them.
       health = { status: p.reachable ? 'verified' : 'failed', method: 'tools-list', configured, ...p }
     }
 

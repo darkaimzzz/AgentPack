@@ -1,6 +1,21 @@
 import { spawn } from 'node:child_process'
 import { resolveCommand, redact } from './run.ts'
-import type { HealthResult } from '../types.ts'
+import type { ToolDefinition } from '../types.ts'
+
+/**
+ * What a probe learned. Deliberately its own type rather than a slice of
+ * HealthResult: it carries the full tool definitions, which the context-cost
+ * estimator needs but an install report must not drag through IPC.
+ */
+export type ProbeResult = {
+  reachable: boolean
+  tools: string[]
+  /** Complete tool objects, including description and inputSchema. */
+  toolDefinitions: ToolDefinition[]
+  server?: { name?: string; version?: string }
+  durationMs: number
+  error?: string
+}
 
 const PROTOCOL = '2024-11-05' // widest server support; capable servers negotiate up
 
@@ -18,7 +33,7 @@ export function probe(opts: {
   env?: Record<string, string>
   timeoutMs?: number
   secretValues?: string[]
-}): Promise<Omit<HealthResult, 'configured'>> {
+}): Promise<ProbeResult> {
   const { command, args = [], env = {}, timeoutMs = 120_000, secretValues = [] } = opts
   const { file, args: spawnArgs, shell } = resolveCommand(command, args)
   const started = Date.now()
@@ -36,7 +51,7 @@ export function probe(opts: {
     let stderr = ''
     let settled = false
 
-    const finish = (r: Omit<HealthResult, 'configured'>) => {
+    const finish = (r: ProbeResult) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -99,9 +114,11 @@ export function probe(opts: {
         })
         child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n')
         const res = await send('tools/list', {})
+        const defs: ToolDefinition[] = res?.tools ?? []
         finish({
           reachable: true,
-          tools: (res?.tools ?? []).map((t: { name: string }) => t.name),
+          tools: defs.map((t) => t.name),
+          toolDefinitions: defs,
           server: init?.serverInfo ?? {},
           durationMs: Date.now() - started,
         })
@@ -109,6 +126,7 @@ export function probe(opts: {
         finish({
           reachable: false,
           tools: [],
+          toolDefinitions: [],
           durationMs: Date.now() - started,
           // Belt and braces: every error leaving this function is scrubbed,
           // whatever path produced it.
