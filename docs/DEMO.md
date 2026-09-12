@@ -42,7 +42,7 @@ If Playwright reports a missing browser, run `npx playwright install chromium`.
 Confirm the build you will present from:
 
 ```powershell
-npm run build          # or use release\AgentPack-1.2.0-win-x64.exe
+npm run build          # or use release\AgentPack-1.3.0-win-x64.exe
 ```
 
 **Do not demo without `--demo`.** Without it, AgentPack reads and writes your real agent

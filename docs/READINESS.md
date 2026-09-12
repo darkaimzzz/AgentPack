@@ -39,16 +39,16 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Local Developer flow | Nine config entries installed; 39 tools discovered across three MCP servers |
 | Actual tools/call | 3 / 3 pass: Filesystem reads a sentinel file; Playwright opens about:blank and closes; Sequential Thinking returns a valid terminal step |
 | Runtime dependency audit | Zero known vulnerabilities reported by npm audit --omit=dev |
-| Portable build | Pass; Windows x64, 100,480,065 bytes, unsigned |
-| Packaged launch | Pass: portable launcher returned 0 for the 1.2.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
+| Portable build | Pass; Windows x64, 100,491,908 bytes, unsigned |
+| Packaged launch | Pass: portable launcher returned 0 for the 1.3.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
 
 Tests use synthetic temporary homes, rather than copying or altering the user's real agent configs. The UI test uses the actual renderer, preload and IPC; only the OS folder picker is replaced with a fixture selection. MCP checks launch real packages. Tests of credential failure use clearly fake fixture tokens.
 
 Evidence is in ignored `.qa/ui-results.json`, `.qa/ui-health.png`, `.qa/tool-call-results.json`, and `.qa/packaged-smoke.txt`. Reproduce with the commands in README.
 
-Artifact: `release/AgentPack-1.2.0-win-x64.exe`
+Artifact: `release/AgentPack-1.3.0-win-x64.exe`
 
-SHA-256: `A6491BD3981A30FC6AB0077365DC7F990AD298DD9C58038A9752F9782AC76CCE`
+SHA-256: `43AB0831DD06536E31EEFF1BA9AFAEF24665AF260AB0CC39701D392D735C431A`
 
 ## Next steps, in priority order
 

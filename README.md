@@ -36,10 +36,10 @@ npm run demo
 
 `npm run demo` opens a fresh sandbox containing three sample agent configs and a nested Next.js + Supabase project. Click **Scan demo project**, **Continue**, choose **Local Developer**, then **Review plan** and **Install selected**. This pack needs no API keys.
 
-The portable build is `release/AgentPack-1.2.0-win-x64.exe`:
+The portable build is `release/AgentPack-1.3.0-win-x64.exe`:
 
 ```powershell
-.\release\AgentPack-1.2.0-win-x64.exe --demo
+.\release\AgentPack-1.3.0-win-x64.exe --demo
 ```
 
 Without `--demo`, AgentPack reads your real agent configuration. Use `npm run dev` for development or `npm start` after building.
@@ -55,6 +55,7 @@ For the presentation itself — preparation, a five-minute script with exact cli
 - Target selection, credential entry, compatibility checks, progress logs, conflict reporting, and rollback.
 - Capability management: activate/deactivate, profiles, schema cost estimates, and file-pattern activation.
 - Secret-free pack export/import through the CLI.
+- A frameless window with no OS menu bar: the app draws its own title bar and controls.
 
 | Agent | MCP configuration | Dormancy |
 | --- | --- | --- |
