@@ -1,0 +1,9 @@
+{
+  "id": "filesystem",
+  "name": "Filesystem",
+  "type": "mcp",
+  "description": "Read, write and search files within an explicitly allowed directory.",
+  "source": "Anthropic — npm @modelcontextprotocol/server-filesystem",
+  "install": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "${projectDir}"] },
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

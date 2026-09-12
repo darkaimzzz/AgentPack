@@ -1,0 +1,12 @@
+{
+  "id": "github",
+  "name": "GitHub",
+  "type": "mcp",
+  "description": "Read and manage repositories, issues and pull requests.",
+  "source": "GitHub — npm @modelcontextprotocol/server-github",
+  "install": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] },
+  "secrets": [
+    { "key": "GITHUB_PERSONAL_ACCESS_TOKEN", "label": "GitHub personal access token", "help": "repo scope is enough for the demo" }
+  ],
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

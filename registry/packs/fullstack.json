@@ -1,0 +1,6 @@
+{
+  "id": "fullstack",
+  "name": "Full-Stack Pack",
+  "description": "Browser testing, file access and repository tooling for a web project.",
+  "capabilities": ["playwright", "filesystem", "github"]
+}

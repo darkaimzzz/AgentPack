@@ -1,0 +1,12 @@
+{
+  "name": "agentpack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-agent package manager for MCP servers and plugins",
+  "scripts": {
+    "check": "node electron/core/selfcheck.ts",
+    "cli": "node electron/core/cli.ts",
+    "spike": "node spike/poc.mjs"
+  }
+}

@@ -1,0 +1,116 @@
+import { spawn } from 'node:child_process'
+import { resolveCommand, redact } from './run.ts'
+import type { HealthResult } from '../types.ts'
+
+const PROTOCOL = '2024-11-05' // widest server support; capable servers negotiate up
+
+/**
+ * Start an MCP server over stdio and ask what it can do:
+ * initialize -> notifications/initialized -> tools/list.
+ *
+ * This is the health check that matters. "The config entry exists" only proves
+ * we wrote a file; this proves the capability actually works (CLAUDE.md §16).
+ * Raw JSON-RPC on purpose — no SDK dependency for ~80 lines.
+ */
+export function probe(opts: {
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  timeoutMs?: number
+  secretValues?: string[]
+}): Promise<Omit<HealthResult, 'configured'>> {
+  const { command, args = [], env = {}, timeoutMs = 120_000, secretValues = [] } = opts
+  const { file, args: spawnArgs, shell } = resolveCommand(command, args)
+  const started = Date.now()
+
+  return new Promise((resolve) => {
+    const child = spawn(file, spawnArgs, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, ...env },
+      shell,
+      windowsHide: true,
+    })
+
+    const pending = new Map<number, { ok: (v: any) => void; fail: (e: Error) => void }>()
+    let buf = ''
+    let stderr = ''
+    let settled = false
+
+    const finish = (r: Omit<HealthResult, 'configured'>) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      child.kill()
+      resolve(r)
+    }
+
+    const failAll = (msg: string) => {
+      const tail = stderr.trim().split('\n').slice(-4).join(' | ')
+      const err = redact(tail ? `${msg} — ${tail}` : msg, secretValues)
+      for (const p of pending.values()) p.fail(new Error(err))
+      pending.clear()
+    }
+
+    child.stdout.on('data', (chunk) => {
+      buf += chunk
+      let nl: number
+      // NDJSON: one JSON-RPC message per line.
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (!line) continue
+        let msg: any
+        try {
+          msg = JSON.parse(line)
+        } catch {
+          continue // some servers print human logs to stdout
+        }
+        const waiter = msg.id != null ? pending.get(msg.id) : undefined
+        if (!waiter) continue
+        pending.delete(msg.id)
+        if (msg.error) waiter.fail(new Error(msg.error.message ?? JSON.stringify(msg.error)))
+        else waiter.ok(msg.result)
+      }
+    })
+
+    child.stderr.on('data', (c) => {
+      stderr += c
+    })
+
+    let nextId = 1
+    const send = (method: string, params: unknown) => {
+      const id = nextId++
+      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
+      return new Promise<any>((ok, fail) => pending.set(id, { ok, fail }))
+    }
+
+    const timer = setTimeout(() => failAll(`timed out after ${timeoutMs}ms`), timeoutMs)
+    child.on('error', (e) => failAll(`spawn failed: ${e.message}`))
+    child.on('exit', (code) => failAll(`server exited early (code ${code})`))
+
+    ;(async () => {
+      try {
+        const init = await send('initialize', {
+          protocolVersion: PROTOCOL,
+          capabilities: {},
+          clientInfo: { name: 'agentpack', version: '0.1.0' },
+        })
+        child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n')
+        const res = await send('tools/list', {})
+        finish({
+          reachable: true,
+          tools: (res?.tools ?? []).map((t: { name: string }) => t.name),
+          server: init?.serverInfo ?? {},
+          durationMs: Date.now() - started,
+        })
+      } catch (e) {
+        finish({
+          reachable: false,
+          tools: [],
+          durationMs: Date.now() - started,
+          error: (e as Error).message,
+        })
+      }
+    })()
+  })
+}
