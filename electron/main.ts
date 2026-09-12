@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, nativeTheme } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { registerHandlers } from './ipc/handlers.ts'
@@ -17,6 +17,10 @@ if (app.isPackaged) {
   process.env.AGENTPACK_REGISTRY ??= join(process.resourcesPath, 'registry')
 }
 
+// Nothing in AgentPack uses File/Edit/View, and the menu bar sat above the app's
+// own header as a second strip of chrome. Removing it also drops its accelerators.
+Menu.setApplicationMenu(null)
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1180,
@@ -24,8 +28,11 @@ function createWindow() {
     minWidth: 900,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0b0d10',
-    titleBarStyle: 'default',
+    // The bezel colour, so there is no flash of a different background before
+    // the renderer paints.
+    backgroundColor: '#c62828',
+    // The app draws its own title bar; see .topbar in src/styles.css.
+    frame: false,
     webPreferences: {
       preload: join(here, '../preload/index.cjs'),
       // The renderer gets no Node and no direct filesystem or process access.
@@ -48,7 +55,9 @@ function createWindow() {
   return win
 }
 
-nativeTheme.themeSource = 'dark'
+// Only reaches native surfaces now — chiefly the folder picker, which should
+// match the light UI rather than fight it.
+nativeTheme.themeSource = 'light'
 
 /**
  * AGENTPACK_SMOKE=1 loads the real window, exercises the preload bridge and a

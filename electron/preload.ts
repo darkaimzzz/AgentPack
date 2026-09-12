@@ -6,6 +6,9 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 const api = {
   info: () => ipcRenderer.invoke('app:info'),
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window:toggleMaximize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
   detectAgents: () => ipcRenderer.invoke('agents:detect'),
   listRegistry: () => ipcRenderer.invoke('registry:list'),
   analyze: (dir: string) => ipcRenderer.invoke('project:analyze', dir),

@@ -119,9 +119,24 @@ export default function App() {
 
   const stepIndex = STEPS.findIndex(([s]) => s === step)
 
+  /**
+   * Window controls live in the main process. If that channel is missing — the
+   * usual cause is a renderer that hot-reloaded while an older main process
+   * kept running — say so, rather than leaving a button that does nothing.
+   */
+  const windowCmd = (name: 'minimizeWindow' | 'toggleMaximizeWindow' | 'closeWindow') => {
+    window.agentpack[name]().catch((e: Error) =>
+      setError(`Window controls are unavailable (${e.message}). Restart AgentPack — this happens when the app is left running across a code change.`))
+  }
+
   return (
     <div className="app">
       <header className="topbar">
+        {/* The lid: one big lens and three lamps. Decorative only. */}
+        <div className="lens" aria-hidden />
+        <div className="lamps" aria-hidden>
+          <span className="lamp red" /><span className="lamp amber" /><span className="lamp green" />
+        </div>
         <div className="brand">Agent<span>Pack</span></div>
         {demoProject && <span className="tag">Demo sandbox</span>}
         <div className="modeswitch">
@@ -140,6 +155,13 @@ export default function App() {
             ))}
           </nav>
         )}
+        <div className="wincontrols">
+          {/* Glyphs like – and □ sit off-centre in whatever font resolves, so
+              these two are drawn as shapes in CSS. */}
+          <button className="min" title="Minimise" aria-label="Minimise" onClick={() => windowCmd('minimizeWindow')} />
+          <button className="max" title="Maximise" aria-label="Maximise" onClick={() => windowCmd('toggleMaximizeWindow')} />
+          <button className="x" title="Close" aria-label="Close" onClick={() => windowCmd('closeWindow')}>✕</button>
+        </div>
       </header>
 
       <main>
@@ -152,7 +174,7 @@ export default function App() {
             </div>
           )}
           {step === 'detect' && <>
-            {demoProject && <div className="banner"><div className="h">Demo workspace</div><p>Try installation and rollback with three sample agent configs.</p><button onClick={() => analyze(demoProject)}>Scan demo project</button></div>}
+            {demoProject && <div className="banner"><div className="h">Demo workspace</div><p>Try installation and rollback with three sample agent configs.</p><button className="btn small" onClick={() => analyze(demoProject)}>Scan demo project</button></div>}
             <Detect agents={agents} />
             <fieldset className="target-picker"><legend>Configure these agents</legend>
               {agents.filter(a=>a.detected).map(a=><label key={a.key}><input type="checkbox" checked={targetKeys.has(a.key)} onChange={()=>setTargetKeys(prev=>{const next=new Set(prev);next.has(a.key)?next.delete(a.key):next.add(a.key);return next})}/>{a.name}</label>)}
