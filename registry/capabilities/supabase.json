@@ -6,13 +6,30 @@
   "source": "Supabase — npm @supabase/mcp-server-supabase",
   "install": {
     "command": "npx",
-    "args": ["-y", "@supabase/mcp-server-supabase@latest", "--read-only", "--project-ref=${SUPABASE_PROJECT_REF}"]
+    "args": [
+      "-y",
+      "@supabase/mcp-server-supabase@0.12.0",
+      "--read-only",
+      "--project-ref=${SUPABASE_PROJECT_REF}"
+    ]
   },
   "inputs": [
-    { "key": "SUPABASE_PROJECT_REF", "label": "Supabase project ref", "help": "the subdomain in your project URL, e.g. abcdefghijklmnop" }
+    {
+      "key": "SUPABASE_PROJECT_REF",
+      "label": "Supabase project ref",
+      "help": "the subdomain in your project URL, e.g. abcdefghijklmnop"
+    }
   ],
   "secrets": [
-    { "key": "SUPABASE_ACCESS_TOKEN", "label": "Supabase personal access token", "help": "created under Account > Access Tokens" }
+    {
+      "key": "SUPABASE_ACCESS_TOKEN",
+      "label": "Supabase personal access token",
+      "help": "created under Account > Access Tokens"
+    }
   ],
-  "supportedAgents": ["claude", "codex", "opencode"]
+  "supportedAgents": [
+    "claude",
+    "codex",
+    "opencode"
+  ]
 }

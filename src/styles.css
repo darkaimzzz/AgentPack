@@ -4,7 +4,7 @@
   --panel-2: #1a1f26;
   --line: #262d36;
   --text: #e6eaef;
-  --muted: #8b97a6;
+  --muted: #9aa7b8;
   --accent: #5eead4;
   --accent-dim: #17453f;
   --ok: #4ade80;
@@ -155,10 +155,11 @@ label.field .help { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 }
 .matrix td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .matrix tr:last-child td { border-bottom: none; }
-.cell { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.cell { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
 .cell.ok { color: var(--ok); }
 .cell.skip { color: var(--muted); }
 .cell.bad { color: var(--bad); }
+.cell.warn { color: var(--warn); }
 
 .tools {
   margin-top: 7px; color: var(--muted); font-family: var(--mono);

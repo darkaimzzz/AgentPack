@@ -41,7 +41,7 @@ export type DetectedAgent = {
 /** Result of writing one capability into one agent. */
 export type InstallResult = {
   agent: AgentKey
-  status: 'installed' | 'already-present' | 'failed'
+  status: 'installed' | 'already-present' | 'conflict' | 'failed'
   configPath: string
   backupPath: string | null
   error?: string
@@ -62,7 +62,10 @@ export type BackupToken = {
   agent: AgentKey
   configPath: string
   backupPath: string | null
+  /** False when AgentPack created this file, so rollback may remove it. */
   existed: boolean
+  /** Hash of the file immediately after install, to detect later edits. */
+  postHash?: string | null
 }
 
 export type ProgressEvent =

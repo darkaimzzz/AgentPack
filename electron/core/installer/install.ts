@@ -1,6 +1,7 @@
 import { adapters } from '../agents/index.ts'
+import { matchEntry } from '../agents/adapter.ts'
 import { getCapability, resolveArgs, missingInputs } from '../capabilities/registry.ts'
-import { backup, restore } from './backup.ts'
+import { backup, restoreFile, deleteFile, hashFile } from './backup.ts'
 import { preflight, type PreflightResult } from './preflight.ts'
 import { probe } from './health.ts'
 import * as ledger from './ledger.ts'
@@ -129,11 +130,22 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
         if (!cap.supportedAgents.includes(key)) {
           return { ...base, status: 'failed' as const, error: `${cap.name} does not support ${adapter.name}` }
         }
-        // Idempotency guard. Without it a second install duplicates the entry,
-        // which is the most likely live-demo failure.
-        if (adapter.has(resolved)) {
+        // Compare what is actually on disk, not merely whether the id exists.
+        // An entry with a stale command, a changed scope, or enabled:false would
+        // otherwise be reported as a healthy install.
+        const state = matchEntry(adapter, resolved, env)
+        if (state === 'same') {
           onProgress({ kind: 'agent', agent: key, status: 'already-present', detail: cap.name })
           return { ...base, status: 'already-present' as const }
+        }
+        if (state === 'different') {
+          const existing = adapter.read(resolved)
+          const error =
+            `${cap.name} is already configured in ${adapter.name} with different settings ` +
+            `(${existing?.enabled === false ? 'disabled' : `${existing?.command} ${existing?.args.join(' ')}`}). ` +
+            'Left untouched — remove it there, or roll back, to replace it.'
+          onProgress({ kind: 'agent', agent: key, status: 'conflict', detail: `${cap.name}: differs` })
+          return { ...base, status: 'conflict' as const, error }
         }
         adapter.write(resolved, env)
         onProgress({ kind: 'agent', agent: key, status: 'installed', detail: cap.name })
@@ -160,6 +172,12 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     reports.push({ capability: cap, results, health })
   }
 
+  // Record what the files look like now, so rollback can tell "untouched since
+  // we wrote it" from "the user or the agent edited it afterwards".
+  ledger.amend(runId, {
+    backups: backups.map((b) => ({ ...b, postHash: hashFile(b.configPath) })),
+  })
+
   onProgress({ kind: 'stage', stage: 'done' })
   return { id: runId, capabilities: reports, ledgerId: runId, preflight: pre }
 }
@@ -169,12 +187,78 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
  * We restore configuration only — we do not claim to undo npm/npx caches
  * or machine state (CLAUDE.md §15).
  */
-export function rollback(ledgerId?: string): { restored: string[]; entryId: string } | null {
+export type RollbackOutcome = {
+  entryId: string
+  restored: string[]
+  /** Files we created and have now deleted. */
+  removed: string[]
+  /** Files edited since install: we removed only our own entries. */
+  merged: string[]
+}
+
+/**
+ * Undo one run.
+ *
+ * Whole-file restore is only safe when nothing has touched the file since we
+ * wrote it — and something often has, because Claude Code rewrites
+ * ~/.claude.json continuously. When the file has changed we remove just our own
+ * entries instead, so a later edit is never silently destroyed.
+ */
+export function rollback(ledgerId?: string): RollbackOutcome | null {
   const entry = ledgerId ? ledger.entries().find((e) => e.id === ledgerId) : ledger.latestUndoable()
   if (!entry) return null
-  for (const token of entry.backups) restore(token)
+  const outcome = undoEntry(entry)
   ledger.markRolledBack(entry.id)
-  return { restored: entry.backups.filter((b) => b.existed).map((b) => b.configPath), entryId: entry.id }
+  return outcome
+}
+
+function undoEntry(entry: ledger.LedgerEntry): RollbackOutcome {
+  const restored: string[] = []
+  const removed: string[] = []
+  const merged: string[] = []
+  const caps = entry.capabilities.map((id) => {
+    try {
+      return getCapability(id)
+    } catch {
+      return null
+    }
+  }).filter((c): c is Capability => c !== null)
+
+  for (const token of entry.backups) {
+    const adapter = adapters[token.agent]
+    const current = hashFile(token.configPath)
+    if (current === null) continue // already gone; nothing to undo
+
+    const untouched = token.postHash != null && current === token.postHash
+
+    if (!token.existed) {
+      // We created this file. Delete it if it is still ours alone; otherwise
+      // strip our entries and keep whatever else arrived.
+      if (untouched) {
+        deleteFile(token.configPath)
+        removed.push(token.configPath)
+      } else {
+        for (const cap of caps) adapter.remove(cap)
+        if (adapter.isEmpty()) {
+          deleteFile(token.configPath)
+          removed.push(token.configPath)
+        } else {
+          merged.push(token.configPath)
+        }
+      }
+      continue
+    }
+
+    if (untouched) {
+      restoreFile(token)
+      restored.push(token.configPath)
+    } else {
+      for (const cap of caps) adapter.remove(cap)
+      merged.push(token.configPath)
+    }
+  }
+
+  return { entryId: entry.id, restored, removed, merged }
 }
 
 /**
@@ -184,16 +268,18 @@ export function rollback(ledgerId?: string): { restored: string[]; entryId: stri
  * they were before the first install. Used between demo runs so the machine is
  * reset without manual repair (CLAUDE.md §24).
  */
-export function rollbackAll(): { entries: string[]; restored: string[] } {
+export function rollbackAll(): { entries: string[]; restored: string[]; removed: string[]; merged: string[] } {
   const undone: string[] = []
   const restored = new Set<string>()
+  const removed = new Set<string>()
+  const merged = new Set<string>()
   for (const entry of [...ledger.entries()].filter((e) => !e.rolledBackAt).reverse()) {
-    for (const token of entry.backups) {
-      restore(token)
-      if (token.existed) restored.add(token.configPath)
-    }
+    const o = undoEntry(entry)
+    o.restored.forEach((p) => restored.add(p))
+    o.removed.forEach((p) => removed.add(p))
+    o.merged.forEach((p) => merged.add(p))
     ledger.markRolledBack(entry.id)
     undone.push(entry.id)
   }
-  return { entries: undone, restored: [...restored] }
+  return { entries: undone, restored: [...restored], removed: [...removed], merged: [...merged] }
 }

@@ -12,6 +12,7 @@ const { adapters } = await import('./agents/index.ts')
 const { getCapability, resolveArgs, missingInputs, capabilities, packs } = await import('./capabilities/registry.ts')
 const { install, rollback, rollbackAll } = await import('./installer/install.ts')
 const { preflight } = await import('./installer/preflight.ts')
+const { probe } = await import('./installer/health.ts')
 const {
   buildManifest, exportManifest, readManifest, manifestMissingSecrets, installedCapabilities,
 } = await import('./capabilities/manifest.ts')
@@ -172,7 +173,7 @@ test('all three agents detect from a seeded home', () => {
 
 test('one capability compiles to three native formats', () => {
   for (const a of Object.values(adapters)) {
-    assert.equal(a.has(CAP), false, `${a.key} should not have it yet`)
+    assert.equal(a.read(CAP), null, `${a.key} should not have it yet`)
     a.write(CAP, { TOKEN: 'secret123' })
   }
 
@@ -198,7 +199,7 @@ test('one capability compiles to three native formats', () => {
   })
   assert.equal(oc.$schema, 'https://opencode.ai/config.json', 'schema key must survive')
 
-  for (const a of Object.values(adapters)) assert.equal(a.has(CAP), true, `${a.key} should report installed`)
+  for (const a of Object.values(adapters)) assert.ok(a.read(CAP), `${a.key} should report installed`)
 })
 
 // --- install orchestration --------------------------------------------------
@@ -394,6 +395,178 @@ test('installedCapabilities reflects what is actually in the configs', async () 
   assert.equal(live[0].capability.id, 'playwright')
   assert.deepEqual(live[0].agents.sort(), ['claude', 'codex'])
   rollbackAll()
+})
+
+// --- QA regressions (each fails if the reported defect returns) --------------
+
+test('QA1: a deselected capability\'s secret never reaches the request', () => {
+  // Mirrors the UI: values are retained when a capability is deselected.
+  const values = { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_deselected_leak', SUPABASE_PROJECT_REF: 'ref123' }
+  const chosen = [getCapability('playwright'), getCapability('supabase')] // github NOT selected
+  const secrets: Record<string, string> = {}
+  const inputs: Record<string, string> = {}
+  for (const c of chosen) {
+    for (const s of c.secrets ?? []) if (values[s.key as keyof typeof values]) secrets[s.key] = values[s.key as keyof typeof values]
+    for (const i of c.inputs ?? []) if (values[i.key as keyof typeof values]) inputs[i.key] = values[i.key as keyof typeof values]
+  }
+  assert.ok(!('GITHUB_PERSONAL_ACCESS_TOKEN' in inputs), 'deselected secret reclassified as an input — it would reach the ledger')
+  assert.ok(!('GITHUB_PERSONAL_ACCESS_TOKEN' in secrets), 'deselected capability should contribute nothing')
+  assert.equal(inputs.SUPABASE_PROJECT_REF, 'ref123', 'selected capability inputs must still flow')
+})
+
+test('QA2: rollback deletes a config file AgentPack created', async () => {
+  const fresh = join(sandbox, 'fresh')
+  mkdirSync(join(fresh, '.codex'), { recursive: true })
+  mkdirSync(join(fresh, '.config', 'opencode'), { recursive: true })
+  const prev = process.env.AGENTPACK_HOME
+  process.env.AGENTPACK_HOME = fresh
+  try {
+    const targets = ['claude', 'codex', 'opencode'] as const
+    for (const k of targets) assert.equal(existsSync(adapters[k].configPath()), false, `${k} should start with no config`)
+    await install({ capabilityIds: ['sequential-thinking'], agents: [...targets], projectDir: fresh })
+    for (const k of targets) assert.ok(existsSync(adapters[k].configPath()), `${k} config should have been created`)
+    rollbackAll()
+    for (const k of targets) {
+      assert.equal(existsSync(adapters[k].configPath()), false,
+        `${k}: rollback left behind a file AgentPack created`)
+    }
+  } finally {
+    process.env.AGENTPACK_HOME = prev
+  }
+})
+
+test('QA3: a broken saved entry is a conflict, not a healthy install', async () => {
+  seed()
+  const cap = getCapability('sequential-thinking')
+  // Pre-seed Claude with the right id but a command that cannot work.
+  const cfgPath = join(sandbox, '.claude.json')
+  const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  cfg.mcpServers[cap.id] = { type: 'stdio', command: 'agentpack-nonexistent-command', args: [] }
+  writeFileSync(cfgPath, JSON.stringify(cfg, null, 2))
+
+  const r = await install({ capabilityIds: [cap.id], agents: ['claude', 'codex'], projectDir: sandbox })
+  const claudeResult = r.capabilities[0].results.find((x) => x.agent === 'claude')!
+  assert.equal(claudeResult.status, 'conflict', 'a stale/broken entry must not report as already-present')
+  assert.match(claudeResult.error!, /different settings/)
+  // The bad entry is left alone rather than silently overwritten.
+  const after = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  assert.equal(after.mcpServers[cap.id].command, 'agentpack-nonexistent-command')
+  rollbackAll()
+})
+
+test('QA4: rollback preserves an unrelated edit made after install', async () => {
+  seed()
+  const cfgPath = join(sandbox, '.claude.json')
+  await install({ capabilityIds: ['playwright'], agents: ['claude'], projectDir: sandbox })
+
+  // Simulate the agent (or user) editing the file afterwards.
+  const edited = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  edited.somethingTheUserAddedLater = 'keep me'
+  writeFileSync(cfgPath, JSON.stringify(edited, null, 2))
+
+  rollbackAll()
+  const after = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  assert.equal(after.somethingTheUserAddedLater, 'keep me', 'a later edit was destroyed by whole-file restore')
+  assert.ok(!after.mcpServers?.playwright, 'our entry should still have been removed')
+  assert.ok(after.mcpServers?.existing, 'pre-existing entries must survive')
+})
+
+test('QA5: a secret echoed in a JSON-RPC error is redacted', async () => {
+  const SECRET = 'ghp_protocol_error_secret_value'
+  const script = join(sandbox, 'error-server.mjs')
+  writeFileSync(script, `
+    process.stdin.on('data', (d) => {
+      for (const line of String(d).split('\\n')) {
+        if (!line.trim()) continue
+        const msg = JSON.parse(line)
+        if (msg.id) process.stdout.write(JSON.stringify({
+          jsonrpc: '2.0', id: msg.id,
+          error: { code: -32000, message: 'auth failed for token ${SECRET}' },
+        }) + '\\n')
+      }
+    })
+    setTimeout(() => {}, 10000)
+  `)
+  const r = await probe({ command: process.execPath, args: [script], secretValues: [SECRET], timeoutMs: 20_000 })
+  assert.equal(r.reachable, false)
+  assert.ok(!r.error!.includes(SECRET), `SECRET LEAKED THROUGH PROTOCOL ERROR: ${r.error}`)
+  assert.match(r.error!, /redacted/)
+})
+
+test('QA6: Back from every screen leads somewhere usable', () => {
+  // Mirrors src/App.tsx BACK. 'install' is transient and must never be a target.
+  const BACK: Record<string, string | undefined> = {
+    detect: undefined, project: 'detect', recommend: 'project',
+    plan: 'recommend', install: 'plan', report: 'recommend',
+  }
+  for (const [from, to] of Object.entries(BACK)) {
+    if (!to) continue
+    assert.notEqual(to, 'install', `Back from ${from} lands on the transient install screen`)
+    assert.ok(to in BACK, `Back from ${from} goes to an unknown step`)
+  }
+})
+
+test('QA7: OpenCode JSONC with comments is accepted', () => {
+  seed()
+  const p = join(sandbox, '.config', 'opencode', 'opencode.jsonc')
+  writeFileSync(p, [
+    '{',
+    '  // my opencode config',
+    '  "$schema": "https://opencode.ai/config.json",',
+    '  /* block comment */',
+    '  "theme": "dark",',
+    '}',
+  ].join('\n'))
+  const cap = getCapability('playwright')
+  assert.doesNotThrow(() => adapters.opencode.write(cap, {}), 'a commented .jsonc must not be rejected')
+  const entry = adapters.opencode.read(cap)
+  assert.ok(entry, 'entry should be readable back')
+  assert.equal(entry!.command, 'npx')
+  const raw = readFileSync(p, 'utf8')
+  assert.match(raw, /my opencode config/, 'comments must survive the edit')
+  assert.match(raw, /"theme"/, 'unrelated keys must survive')
+})
+
+test('QA8: apostrophes and newlines produce valid TOML', async () => {
+  const { parse } = await import('smol-toml')
+  seed()
+  const cap = getCapability('filesystem')
+  const nasty = "C:\\Projects\\O'Brien App"
+  adapters.codex.write({ ...cap, install: { ...cap.install, args: [nasty, 'plain'] } }, { K: "it's \"quoted\"" })
+  const raw = readFileSync(join(sandbox, '.codex', 'config.toml'), 'utf8')
+  const parsed = parse(raw) as { mcp_servers: Record<string, { args: string[]; env: Record<string, string> }> }
+  assert.deepEqual(parsed.mcp_servers.filesystem.args, [nasty, 'plain'], 'apostrophe path must round-trip exactly')
+  assert.equal(parsed.mcp_servers.filesystem.env.K, "it's \"quoted\"")
+  assert.ok(parsed.mcp_servers.node_repl, 'the pre-existing table must survive')
+  rollbackAll()
+})
+
+test('QA9: export recovers a real installed input value', async () => {
+  seed()
+  await install({
+    capabilityIds: ['supabase'],
+    agents: ['claude'],
+    projectDir: sandbox,
+    inputs: { SUPABASE_PROJECT_REF: 'recovered123' },
+    secrets: { SUPABASE_ACCESS_TOKEN: 'sbp_should_not_export' },
+  })
+  // The normal user path: export without passing inputs back in by hand.
+  const p = join(sandbox, 'recovered.json')
+  exportManifest(p, buildManifest({ name: 'recovered' }))
+  const m = readManifest(p)
+  assert.equal(m.inputs?.SUPABASE_PROJECT_REF, 'recovered123', 'export dropped the installed project ref')
+  assert.ok(!readFileSync(p, 'utf8').includes('sbp_should_not_export'), 'SECRET LEAKED INTO MANIFEST')
+  rollbackAll()
+})
+
+test('QA10: registry packages are pinned to exact versions', () => {
+  for (const c of capabilities()) {
+    for (const a of c.install.args) {
+      if (!a.startsWith('@')) continue
+      assert.ok(!a.endsWith('@latest'), `${c.id} uses @latest — not reproducible on demo day`)
+      assert.match(a, /@\d[\w.-]*$/, `${c.id} package "${a}" is unpinned`)
+    }
+  }
 })
 
 // --- run --------------------------------------------------------------------

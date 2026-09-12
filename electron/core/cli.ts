@@ -114,7 +114,7 @@ if (cmd === 'detect') {
     for (const r of c.results) {
       const line = `  ${adapters[r.agent].name.padEnd(13)} ${r.status}${r.error ? ` — ${r.error}` : ''}`
       console.log(r.status === 'failed' ? red(line) : line)
-      if (r.status === 'failed') allOk = false
+      if (r.status === 'failed' || r.status === 'conflict') allOk = false
     }
   }
   console.log(`\nrollback with: node electron/core/cli.ts rollback ${report.ledgerId}`)
@@ -127,7 +127,9 @@ if (cmd === 'detect') {
       process.exit(1)
     }
     console.log(ok(`rolled back ${r.entries.length} run(s)`))
-    for (const p of r.restored) console.log(`  restored ${p}`)
+    for (const p of r.restored) console.log(`  restored  ${p}`)
+    for (const p of r.removed) console.log(`  removed   ${p} ${dim('(created by agentpack)')}`)
+    for (const p of r.merged) console.log(`  unpicked  ${p} ${dim('(edited since install; removed only our entries)')}`)
   } else {
     const result = rollback(rest[0])
     if (!result) {
@@ -135,7 +137,9 @@ if (cmd === 'detect') {
       process.exit(1)
     }
     console.log(ok(`rolled back ${result.entryId}`))
-    for (const p of result.restored) console.log(`  restored ${p}`)
+    for (const p of result.restored) console.log(`  restored  ${p}`)
+    for (const p of result.removed) console.log(`  removed   ${p} ${dim('(created by agentpack)')}`)
+    for (const p of result.merged) console.log(`  unpicked  ${p} ${dim('(edited since install; removed only our entries)')}`)
   }
 } else if (cmd === 'prewarm') {
   console.log('Warming the npx cache so the demo does not fetch from the network.\n')
@@ -187,11 +191,18 @@ if (cmd === 'detect') {
     secrets,
     inputs,
   })
+  let importOk = true
   for (const c of report.capabilities) {
     console.log(c.health.reachable
       ? ok(`${c.capability.name.padEnd(22)} ${c.health.tools.length} tools`)
       : bad(`${c.capability.name.padEnd(22)} ${c.health.error}`))
+    if (!c.health.reachable) importOk = false
+    for (const r of c.results.filter((x) => x.status === 'failed' || x.status === 'conflict')) {
+      console.log(red(`    ${adapters[r.agent].name.padEnd(13)} ${r.status} — ${r.error}`))
+      importOk = false
+    }
   }
+  process.exit(importOk ? 0 : 1)
 } else {
   console.error(`unknown command: ${cmd}`)
   process.exit(2)

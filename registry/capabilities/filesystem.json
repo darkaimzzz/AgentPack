@@ -4,6 +4,17 @@
   "type": "mcp",
   "description": "Read, write and search files within an explicitly allowed directory.",
   "source": "Anthropic — npm @modelcontextprotocol/server-filesystem",
-  "install": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "${projectDir}"] },
-  "supportedAgents": ["claude", "codex", "opencode"]
+  "install": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-filesystem@2026.8.31",
+      "${projectDir}"
+    ]
+  },
+  "supportedAgents": [
+    "claude",
+    "codex",
+    "opencode"
+  ]
 }

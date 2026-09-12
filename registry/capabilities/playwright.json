@@ -4,6 +4,17 @@
   "type": "mcp",
   "description": "Drive a real browser: navigate, click, fill forms, screenshot, read console and network.",
   "source": "Microsoft — npm @playwright/mcp",
-  "install": { "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--headless"] },
-  "supportedAgents": ["claude", "codex", "opencode"]
+  "install": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@playwright/mcp@0.0.80",
+      "--headless"
+    ]
+  },
+  "supportedAgents": [
+    "claude",
+    "codex",
+    "opencode"
+  ]
 }

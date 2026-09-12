@@ -63,7 +63,7 @@ for (let i = 1; i <= RUNS; i++) {
 
   // A rehearsal must start from a clean baseline, or the idempotency guard
   // correctly skips every write and proves nothing.
-  const dirty = candidates.filter((c) => agents.every((k) => adapters[k].has(c)))
+  const dirty = candidates.filter((c) => agents.every((k) => adapters[k].read(c) !== null))
   if (dirty.length === candidates.length && candidates.length) {
     problems.push(
       `baseline is not clean — ${dirty.map((c) => c.id).join(', ')} already configured in every agent. ` +

@@ -9,6 +9,18 @@ const STEPS: Array<[Step, string]> = [
   ['plan', 'Plan'], ['install', 'Install'], ['report', 'Report'],
 ]
 
+/**
+ * Explicit back transitions. Stepping backwards through STEPS would land on
+ * 'install' — a transient state with no controls — and strand the user.
+ */
+const BACK: Partial<Record<Step, Step>> = {
+  project: 'detect',
+  recommend: 'project',
+  plan: 'recommend',
+  install: 'plan', // only reachable when an install is not running
+  report: 'recommend',
+}
+
 export default function App() {
   const [step, setStep] = useState<Step>('detect')
   const [agents, setAgents] = useState<DetectedAgent[]>([])
@@ -20,6 +32,7 @@ export default function App() {
   const [report, setReport] = useState<InstallReport | null>(null)
   const [busy, setBusy] = useState(false)
   const [rolledBack, setRolledBack] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     window.agentpack.detectAgents().then(setAgents)
@@ -43,12 +56,15 @@ export default function App() {
 
   async function analyze(path: string) {
     setBusy(true)
+    setError(null)
     try {
       const a = await window.agentpack.analyze(path)
       setDir(path)
       setAnalysis(a)
       setSelected(new Set(a.recommendations.map((r) => r.capability.id)))
       setStep('project')
+    } catch (e) {
+      setError(`Could not analyse that folder: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -58,14 +74,18 @@ export default function App() {
     setEvents([])
     setReport(null)
     setRolledBack(false)
+    setError(null)
     setStep('install')
     setBusy(true)
-    const secretKeys = new Set(chosen.flatMap((c) => (c.secrets ?? []).map((s) => s.key)))
+    // Build the request from the SELECTED capabilities' declared fields only.
+    // Iterating retained `values` instead would reclassify a deselected
+    // capability's secret as an ordinary input — and inputs are persisted to the
+    // ledger. Never let selection state decide what counts as a secret.
     const secrets: Record<string, string> = {}
     const inputs: Record<string, string> = {}
-    for (const [k, v] of Object.entries(values)) {
-      if (!v) continue
-      ;(secretKeys.has(k) ? secrets : inputs)[k] = v
+    for (const c of chosen) {
+      for (const s of c.secrets ?? []) if (values[s.key]) secrets[s.key] = values[s.key]
+      for (const i of c.inputs ?? []) if (values[i.key]) inputs[i.key] = values[i.key]
     }
     try {
       const r = await window.agentpack.install({
@@ -77,6 +97,10 @@ export default function App() {
       })
       setReport(r)
       setStep('report')
+    } catch (e) {
+      // Leave the user on the install screen WITH a message and a way back,
+      // rather than on a silent dead end.
+      setError(`Install failed: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -100,6 +124,12 @@ export default function App() {
 
       <main>
         <div className="wrap">
+          {error && (
+            <div className="banner bad">
+              <div className="h">Something went wrong</div>
+              <div className="meta">{error}</div>
+            </div>
+          )}
           {step === 'detect' && <Detect agents={agents} />}
           {step === 'project' && analysis && <Project analysis={analysis} />}
           {step === 'recommend' && analysis && (
@@ -126,9 +156,14 @@ export default function App() {
         onRollback={async () => {
           if (!report) return
           setBusy(true)
+          setError(null)
           try {
-            await window.agentpack.rollback(report.ledgerId)
-            setRolledBack(true)
+            const r = await window.agentpack.rollback(report.ledgerId)
+            // A null result means nothing was undone — do not claim success.
+            if (r) setRolledBack(true)
+            else setError('Nothing to roll back: this run was already undone.')
+          } catch (e) {
+            setError(`Rollback failed: ${(e as Error).message}`)
           } finally {
             setBusy(false)
           }
@@ -390,7 +425,7 @@ function Report({
   events: ProgressEvent[]
 }) {
   const [showLogs, setShowLogs] = useState(false)
-  const failed = report.capabilities.filter((c) => !c.health.reachable || c.results.some((r) => r.status === 'failed'))
+  const failed = report.capabilities.filter((c) => !c.health.reachable || c.results.some((r) => r.status === 'failed' || r.status === 'conflict'))
   const totalTools = report.capabilities.reduce((n, c) => n + c.health.tools.length, 0)
 
   return (
@@ -438,13 +473,18 @@ function Report({
               </td>
               {targets.map((t) => {
                 const r = c.results.find((x) => x.agent === t.key)
-                const cls = !r ? 'skip' : r.status === 'failed' ? 'bad' : r.status === 'already-present' ? 'skip' : 'ok'
-                const label = !r ? '—' : r.status === 'installed' ? 'Installed'
-                  : r.status === 'already-present' ? 'Already there' : 'Failed'
+                const cls = !r ? 'skip'
+                  : r.status === 'failed' ? 'bad'
+                  : r.status === 'conflict' ? 'warn'
+                  : r.status === 'already-present' ? 'skip' : 'ok'
+                const label = !r ? '—'
+                  : r.status === 'installed' ? 'Installed'
+                  : r.status === 'already-present' ? 'Already there'
+                  : r.status === 'conflict' ? 'Conflict' : 'Failed'
                 return (
                   <td key={t.key}>
                     <span className={`cell ${cls}`} title={r?.error ?? ''}>
-                      {cls === 'ok' ? '✓' : cls === 'bad' ? '✗' : '·'} {label}
+                      {cls === 'ok' ? '✓' : cls === 'bad' ? '✗' : cls === 'warn' ? '!' : '·'} {label}
                     </span>
                   </td>
                 )
@@ -452,7 +492,7 @@ function Report({
               <td>
                 {c.health.reachable ? (
                   <>
-                    <span className="cell ok">✓ {c.health.tools.length} tools</span>
+                    <span className="cell ok">✓ {c.health.tools.length} tools discovered</span>
                     <div className="meta" style={{ fontSize: 11 }}>
                       {c.health.server?.name} {c.health.server?.version} · {c.health.durationMs}ms
                     </div>
@@ -516,15 +556,8 @@ function Footer(props: {
 
   return (
     <div className="bar">
-      {step !== 'detect' && step !== 'install' && (
-        <button
-          className="btn ghost"
-          disabled={busy}
-          onClick={() => {
-            const order: Step[] = ['detect', 'project', 'recommend', 'plan', 'install', 'report']
-            setStep(order[Math.max(0, order.indexOf(step) - 1)])
-          }}
-        >
+      {BACK[step] && (
+        <button className="btn ghost" disabled={busy} onClick={() => setStep(BACK[step]!)}>
           Back
         </button>
       )}

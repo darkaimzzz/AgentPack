@@ -68,7 +68,9 @@ export function probe(opts: {
         const waiter = msg.id != null ? pending.get(msg.id) : undefined
         if (!waiter) continue
         pending.delete(msg.id)
-        if (msg.error) waiter.fail(new Error(msg.error.message ?? JSON.stringify(msg.error)))
+        // A server can echo a supplied credential back inside a protocol error.
+        // Redact here too — stderr redaction covers a different path entirely.
+        if (msg.error) waiter.fail(new Error(redact(msg.error.message ?? JSON.stringify(msg.error), secretValues)))
         else waiter.ok(msg.result)
       }
     })
@@ -108,7 +110,9 @@ export function probe(opts: {
           reachable: false,
           tools: [],
           durationMs: Date.now() - started,
-          error: (e as Error).message,
+          // Belt and braces: every error leaving this function is scrubbed,
+          // whatever path produced it.
+          error: redact((e as Error).message, secretValues),
         })
       }
     })()

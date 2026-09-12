@@ -2,13 +2,16 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { home } from '../paths.ts'
 import { readJson, writeJson } from './json-config.ts'
-import type { AgentAdapter } from './adapter.ts'
+import type { AgentAdapter, ConfigEntry } from './adapter.ts'
 import type { Capability } from '../types.ts'
 
 // Shape verified empirically against `claude mcp add` output:
 //   mcpServers.<id> = { type: "stdio", command, args[], env{} }
 
-type ClaudeConfig = { mcpServers?: Record<string, unknown> } & Record<string, unknown>
+type Entry = { type?: string; command?: string; args?: string[]; env?: Record<string, string> }
+type ClaudeConfig = { mcpServers?: Record<string, Entry> } & Record<string, unknown>
+
+const load = (p: string): ClaudeConfig => (existsSync(p) ? readJson<ClaudeConfig>(p) : {})
 
 export const claude: AgentAdapter = {
   key: 'claude',
@@ -30,15 +33,17 @@ export const claude: AgentAdapter = {
     }
   },
 
-  has(cap: Capability) {
+  read(cap: Capability): ConfigEntry | null {
     const p = this.configPath()
-    if (!existsSync(p)) return false
-    return Boolean(readJson<ClaudeConfig>(p).mcpServers?.[cap.id])
+    if (!existsSync(p)) return null
+    const e = load(p).mcpServers?.[cap.id]
+    if (!e) return null
+    return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {} }
   },
 
   write(cap: Capability, env: Record<string, string>) {
     const p = this.configPath()
-    const cfg: ClaudeConfig = existsSync(p) ? readJson<ClaudeConfig>(p) : {}
+    const cfg = load(p)
     cfg.mcpServers ??= {}
     cfg.mcpServers[cap.id] = {
       type: 'stdio',
@@ -47,5 +52,20 @@ export const claude: AgentAdapter = {
       ...(Object.keys(env).length ? { env } : {}),
     }
     writeJson(p, cfg)
+  },
+
+  remove(cap: Capability) {
+    const p = this.configPath()
+    if (!existsSync(p)) return
+    const cfg = load(p)
+    if (!cfg.mcpServers?.[cap.id]) return
+    delete cfg.mcpServers[cap.id]
+    writeJson(p, cfg)
+  },
+
+  isEmpty() {
+    const p = this.configPath()
+    if (!existsSync(p)) return true
+    return Object.keys(load(p).mcpServers ?? {}).length === 0
   },
 }

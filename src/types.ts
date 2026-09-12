@@ -35,7 +35,7 @@ export type Analysis = {
 
 export type InstallResult = {
   agent: AgentKey
-  status: 'installed' | 'already-present' | 'failed'
+  status: 'installed' | 'already-present' | 'conflict' | 'failed'
   configPath: string
   backupPath: string | null
   error?: string

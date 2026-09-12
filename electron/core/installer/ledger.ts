@@ -40,6 +40,10 @@ export function record(entry: LedgerEntry): void {
   write([...read(), entry])
 }
 
+export function amend(id: string, patch: Partial<LedgerEntry>): void {
+  write(read().map((e) => (e.id === id ? { ...e, ...patch } : e)))
+}
+
 export function markRolledBack(id: string): void {
   write(read().map((e) => (e.id === id ? { ...e, rolledBackAt: new Date().toISOString() } : e)))
 }

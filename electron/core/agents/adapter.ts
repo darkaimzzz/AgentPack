@@ -1,11 +1,25 @@
 import type { AgentKey, Capability, DetectedAgent } from '../types.ts'
 
+/** A capability entry as it exists in an agent's config, normalised across formats. */
+export type ConfigEntry = {
+  command: string
+  args: string[]
+  env: Record<string, string>
+  enabled?: boolean
+}
+
+/**
+ * How an existing config entry relates to the one we intend to write.
+ * `different` must never be reported as installed — a stale command or scope
+ * that no longer works would otherwise pass as healthy.
+ */
+export type MatchState = 'absent' | 'same' | 'different'
+
 /**
  * The contract each supported agent implements.
  *
  * Deliberately smaller than CLAUDE.md §9 sketches: backup/rollback are shared
- * file operations, not per-agent behaviour, and validation is agent-independent
- * (we start the server ourselves). Adding an agent is ~50 lines of this.
+ * file operations, not per-agent behaviour. Adding an agent is ~60 lines.
  */
 export type AgentAdapter = {
   key: AgentKey
@@ -13,8 +27,39 @@ export type AgentAdapter = {
   /** Where this agent stores MCP configuration. */
   configPath(): string
   detect(): DetectedAgent
-  /** Is this capability already configured? Gates writes — installs must be idempotent. */
-  has(cap: Capability): boolean
-  /** Write the capability in this agent's native format. Callers must check has() first. */
+  /** Read back what is actually configured, normalised. Null when absent. */
+  read(cap: Capability): ConfigEntry | null
+  /** Write the capability in this agent's native format. */
   write(cap: Capability, env: Record<string, string>): void
+  /** Remove the capability's entry, leaving everything else untouched. */
+  remove(cap: Capability): void
+  /** True when the config holds no capability entries at all. */
+  isEmpty(): boolean
+}
+
+const sameArgs = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])
+
+const sameEnv = (a: Record<string, string>, b: Record<string, string>) => {
+  const ka = Object.keys(a).sort()
+  const kb = Object.keys(b).sort()
+  return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k])
+}
+
+/**
+ * Compare what is on disk against what we intend to install.
+ * Shared by every adapter so the comparison rules cannot drift apart.
+ */
+export function matchEntry(
+  adapter: AgentAdapter,
+  cap: Capability,
+  env: Record<string, string>,
+): MatchState {
+  const existing = adapter.read(cap)
+  if (!existing) return 'absent'
+  if (existing.enabled === false) return 'different'
+  return existing.command === cap.install.command &&
+    sameArgs(existing.args, cap.install.args) &&
+    sameEnv(existing.env, env)
+    ? 'same'
+    : 'different'
 }

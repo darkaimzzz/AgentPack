@@ -1,6 +1,7 @@
 import { writeFileSync, readFileSync } from 'node:fs'
 import { getCapability, capabilities } from './registry.ts'
 import { adapters } from '../agents/index.ts'
+import { entries as ledgerEntries } from '../installer/ledger.ts'
 import type { AgentKey, Capability } from '../types.ts'
 
 /**
@@ -31,13 +32,53 @@ export function installedCapabilities(): Array<{ capability: Capability; agents:
       agents: (Object.keys(adapters) as AgentKey[]).filter((key) => {
         const a = adapters[key]
         try {
-          return a.detect().detected && a.has(capability)
+          return a.detect().detected && a.read(capability) !== null
         } catch {
           return false // an unreadable config is not a crash
         }
       }),
     }))
     .filter((x) => x.agents.length > 0)
+}
+
+/**
+ * Recover the non-secret input values a capability was installed with.
+ *
+ * Prefer the live config — an arg like `--project-ref=abc` is the ground truth —
+ * and fall back to the install ledger. Without this, exporting a real Supabase
+ * install silently drops its project ref and the manifest cannot be replayed.
+ */
+function recoverInputs(caps: Capability[]): Record<string, string> {
+  const recovered: Record<string, string> = {}
+
+  for (const cap of caps) {
+    for (const input of cap.inputs ?? []) {
+      // Find the registry arg carrying this placeholder, then read the value
+      // back out of whatever the agent actually has on disk.
+      const idx = cap.install.args.findIndex((a) => a.includes(`\${${input.key}}`))
+      if (idx === -1) continue
+      const pattern = cap.install.args[idx]
+      for (const key of Object.keys(adapters) as AgentKey[]) {
+        try {
+          const entry = adapters[key].read(cap)
+          const actual = entry?.args[idx]
+          if (!actual) continue
+          // Turn "--project-ref=${X}" + "--project-ref=abc" into "abc".
+          const re = new RegExp('^' + pattern.split(`\${${input.key}}`).map((p) =>
+            p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(.+)') + '$')
+          const m = actual.match(re)
+          if (m?.[1]) { recovered[input.key] = m[1]; break }
+        } catch { /* unreadable config is not fatal to an export */ }
+      }
+    }
+  }
+
+  // Ledger fallback for anything the configs did not yield.
+  for (const entry of ledgerEntries().filter((e) => !e.rolledBackAt)) {
+    for (const [k, v] of Object.entries(entry.inputs ?? {})) recovered[k] ??= v
+  }
+
+  return recovered
 }
 
 export function buildManifest(opts: {
@@ -50,6 +91,7 @@ export function buildManifest(opts: {
   const ids = opts.capabilityIds ?? live.map((x) => x.capability.id)
   const caps = ids.map(getCapability)
   const requiredSecrets = [...new Set(caps.flatMap((c) => (c.secrets ?? []).map((s) => s.key)))]
+  const inputs = { ...recoverInputs(caps), ...opts.inputs }
 
   return {
     agentpack: 1,
@@ -57,7 +99,7 @@ export function buildManifest(opts: {
     exportedAt: new Date().toISOString(),
     capabilities: ids,
     targets: opts.targets ?? [...new Set(live.flatMap((x) => x.agents))],
-    ...(opts.inputs && Object.keys(opts.inputs).length ? { inputs: opts.inputs } : {}),
+    ...(Object.keys(inputs).length ? { inputs } : {}),
     ...(requiredSecrets.length ? { requiredSecrets } : {}),
   }
 }

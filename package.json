@@ -11,13 +11,16 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env})\"",
+    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;const r=require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env});process.exit(r.status===null?1:r.status)\"",
     "rehearse": "node electron/core/rehearse.ts",
-    "prewarm": "node electron/core/cli.ts prewarm"
+    "prewarm": "node electron/core/cli.ts prewarm",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "smol-toml": "^1.8.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
