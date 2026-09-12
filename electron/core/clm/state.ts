@@ -88,8 +88,15 @@ export function runtimeState(capabilityId: string, agent: AgentKey): CapabilityR
   const adapter = adapters[agent]
   if (!supportsType(adapter, cap) || !cap.supportedAgents.includes(agent)) return 'unknown'
   try {
-    const live = cap.type === 'plugin' ? adapter.readPlugin?.(cap) : adapter.read(cap)
-    if (live) return 'active'
+    if (cap.type === 'plugin') {
+      const p = adapter.readPlugin?.(cap)
+      if (p) return p.enabled ? 'active' : 'dormant'
+    } else {
+      const live = adapter.read(resolveFor(cap, agent))
+      // A present entry with enabled:false is installed but NOT exposed to the
+      // agent — that is exactly dormancy, expressed natively.
+      if (live) return live.enabled === false ? 'dormant' : 'active'
+    }
   } catch {
     return 'unknown' // an unreadable config is not a claim either way
   }
@@ -165,14 +172,23 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
   if (!entry) return fail(capabilityId, agent, from, 'dormant', 'entry vanished between read and write', opts)
 
   const token = backup(agent, adapter.configPath(), `clm-${stamp()}`)
+  const native = typeof adapter.setEnabled === 'function'
   try {
-    // Stash BEFORE mutating: if the write fails we must not have lost the entry.
-    dormant.stash(capabilityId, agent, entry)
-    adapter.remove(resolved)
+    if (native) {
+      // Non-destructive: the entry and its credentials stay in the config.
+      // Nothing to stash, so nothing to lose.
+      adapter.setEnabled!(resolved, false)
+    } else {
+      // Stash BEFORE mutating: if the write fails we must not have lost the entry.
+      dormant.stash(capabilityId, agent, entry)
+      adapter.remove(resolved)
+    }
 
     const post = validateConfig(adapter)
-    if (!post.ok) throw new Error(`config invalid after removal: ${post.error}`)
-    if (adapter.read(resolved)) throw new Error('entry still present after removal')
+    if (!post.ok) throw new Error(`config invalid after ${native ? 'disable' : 'removal'}: ${post.error}`)
+    if (runtimeState(capabilityId, agent) !== 'dormant') {
+      throw new Error(`capability is still active after ${native ? 'disable' : 'removal'}`)
+    }
 
     appendLog({ at: new Date().toISOString(), capabilityId, agent, from, to: 'dormant', success: true, source: opts.source ?? 'manual' })
     return {
@@ -181,7 +197,7 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
     }
   } catch (e) {
     restoreFile(token)
-    dormant.drop(capabilityId, agent)
+    if (!native) dormant.drop(capabilityId, agent)
     return fail(capabilityId, agent, from, 'dormant', (e as Error).message, opts, token.backupPath ?? undefined)
   }
 }
@@ -217,6 +233,30 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
       return { success: true, capabilityId, agent, from, to: 'active', changedFiles: [], noop: true }
     }
   }
+  // With a native flag the entry never left, so there is nothing to restore —
+  // just switch it back on.
+  if (typeof adapter.setEnabled === 'function' && !stashed) {
+    const resolvedNative = resolveFor(cap, agent)
+    if (!adapter.read(resolvedNative)) {
+      return fail(capabilityId, agent, from, 'active', `${cap.name} is not configured in ${adapter.name}`, opts)
+    }
+    const t = backup(agent, adapter.configPath(), `clm-${stamp()}`)
+    try {
+      adapter.setEnabled(resolvedNative, true)
+      const v = validateConfig(adapter)
+      if (!v.ok) throw new Error(`config invalid after enable: ${v.error}`)
+      if (runtimeState(capabilityId, agent) !== 'active') throw new Error('capability is still dormant after enable')
+      appendLog({ at: new Date().toISOString(), capabilityId, agent, from, to: 'active', success: true, source: opts.source ?? 'manual' })
+      return {
+        success: true, capabilityId, agent, from, to: 'active',
+        changedFiles: [adapter.configPath()], backupPath: t.backupPath ?? undefined,
+      }
+    } catch (e) {
+      restoreFile(t)
+      return fail(capabilityId, agent, from, 'active', (e as Error).message, opts, t.backupPath ?? undefined)
+    }
+  }
+
   if (!stashed) {
     return fail(capabilityId, agent, from, 'active',
       `no dormant entry stored for ${cap.name} in ${adapter.name}; install it first`, opts)

@@ -24,6 +24,7 @@ const { estimateCost, measureCost, totalCost } = await import('./clm/cost.ts')
 const { deactivate, activate, runtimeState, listRuntime, reconcile, log } = await import('./clm/state.ts')
 const dormantStore = await import('./clm/dormant.ts')
 const { profiles, planProfile, applyProfile, currentProfile } = await import('./clm/profiles.ts')
+const { globToRegExp, matchesAny, triggerDefinitions, startWatching } = await import('./clm/trigger.ts')
 
 const tests: Array<[string, () => void | Promise<void>]> = []
 const test = (name: string, fn: () => void | Promise<void>) => tests.push([name, fn])
@@ -1001,6 +1002,137 @@ test('CLM currentProfile identifies the live profile', async () => {
   applyProfile('frontend', ['claude'])
   const p = currentProfile(['claude'])
   assert.equal(p?.id, 'frontend', `expected frontend, got ${p?.id ?? 'null'}`)
+})
+
+// --- CLM: triggers (Phase 5) -------------------------------------------------
+
+test('CLM glob matching handles the patterns we ship', () => {
+  const p = ['**/*.spec.ts', '**/e2e/**', 'src/*.ts']
+  // ** crosses directories, including zero of them.
+  assert.ok(matchesAny('tests/login.spec.ts', p))
+  assert.ok(matchesAny('a/b/c/deep.spec.ts', p))
+  assert.ok(matchesAny('login.spec.ts', p), '**/ should match zero directories too')
+  assert.ok(matchesAny('packages/app/e2e/checkout.ts', p))
+  // Windows separators must behave identically.
+  assert.ok(matchesAny('tests\\login.spec.ts', p), 'backslash paths must match')
+  // A single star must not cross a directory boundary.
+  assert.ok(matchesAny('src/index.ts', p))
+  assert.ok(!matchesAny('src/nested/index.ts', p), 'src/*.ts must not match a nested file')
+  // Near-misses stay misses.
+  assert.ok(!matchesAny('tests/login.ts', p))
+  assert.ok(!matchesAny('spec.ts.bak', p))
+})
+
+test('CLM ships a trigger for Playwright', () => {
+  const defs = triggerDefinitions()
+  const pw = defs.find((d) => d.capabilityId === 'playwright')
+  assert.ok(pw, 'playwright should declare a trigger')
+  assert.ok(pw!.triggers.some((t) => t.type === 'file_glob' && t.pattern.includes('.spec.')))
+  // Every declared trigger must compile.
+  for (const d of defs) for (const t of d.triggers) assert.doesNotThrow(() => globToRegExp(t.pattern))
+})
+
+test('CLM trigger activates a dormant capability on a matching file', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright'], agents: ['claude'], projectDir: sandbox })
+  assert.equal(deactivate('playwright', 'claude').success, true)
+  assert.equal(runtimeState('playwright', 'claude'), 'dormant')
+
+  const project = join(sandbox, 'trigger-project')
+  mkdirSync(join(project, 'tests'), { recursive: true })
+
+  const fired: string[] = []
+  const handle = startWatching(project, (e) => fired.push(`${e.capabilityId}:${e.agent}`), { agents: ['claude'] })
+  try {
+    writeFileSync(join(project, 'tests', 'auth.spec.ts'), 'test("x", () => {})')
+    // fs.watch is asynchronous; give it a moment to deliver.
+    await new Promise((r) => setTimeout(r, 1200))
+  } finally {
+    handle.stop()
+  }
+
+  assert.ok(fired.includes('playwright:claude'), `trigger did not fire (got ${JSON.stringify(fired)})`)
+  assert.equal(runtimeState('playwright', 'claude'), 'active', 'capability should now be active')
+})
+
+test('CLM trigger ignores non-matching files and node_modules', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright'], agents: ['claude'], projectDir: sandbox })
+  deactivate('playwright', 'claude')
+
+  const project = join(sandbox, 'trigger-quiet')
+  mkdirSync(join(project, 'node_modules', 'pkg'), { recursive: true })
+
+  const fired: string[] = []
+  const handle = startWatching(project, (e) => fired.push(e.capabilityId), { agents: ['claude'] })
+  try {
+    writeFileSync(join(project, 'readme.md'), 'hello')
+    writeFileSync(join(project, 'node_modules', 'pkg', 'index.spec.ts'), 'x')
+    await new Promise((r) => setTimeout(r, 1000))
+  } finally {
+    handle.stop()
+  }
+
+  assert.deepEqual(fired, [], 'a trigger fired on an ignored or non-matching path')
+  assert.equal(runtimeState('playwright', 'claude'), 'dormant', 'nothing should have been activated')
+})
+
+// --- CLM: native disable, OpenCode (Phase 6) --------------------------------
+
+test('OpenCode dormancy uses enabled:false and never stashes a credential', async () => {
+  seed()
+  await install({
+    capabilityIds: ['supabase'],
+    agents: ['opencode'],
+    projectDir: sandbox,
+    inputs: { SUPABASE_PROJECT_REF: 'nativeref' },
+    secrets: { SUPABASE_ACCESS_TOKEN: 'sbp_native_secret' },
+  })
+  for (const e of dormantStore.entries()) dormantStore.drop(e.capabilityId, e.agent)
+
+  assert.equal(deactivate('supabase', 'opencode').success, true)
+  assert.equal(runtimeState('supabase', 'opencode'), 'dormant')
+
+  // The entry is still there — disabled, with its credential untouched.
+  const raw = JSON.parse(readFileSync(adapters.opencode.configPath(), 'utf8'))
+  assert.equal(raw.mcp.supabase.enabled, false, 'should have been disabled in place')
+  assert.equal(raw.mcp.supabase.environment.SUPABASE_ACCESS_TOKEN, 'sbp_native_secret',
+    'credential must stay in the config, not move')
+  assert.equal(dormantStore.get('supabase', 'opencode'), null,
+    'a native disable must not need the credential stash at all')
+
+  assert.equal(activate('supabase', 'opencode').success, true)
+  assert.equal(runtimeState('supabase', 'opencode'), 'active')
+  assert.equal(JSON.parse(readFileSync(adapters.opencode.configPath(), 'utf8')).mcp.supabase.enabled, true)
+})
+
+test('a disabled OpenCode entry is reported dormant, not active', async () => {
+  seed()
+  await install({ capabilityIds: ['playwright'], agents: ['opencode'], projectDir: sandbox })
+  // Disable it by hand, as a user might.
+  adapters.opencode.setEnabled!(getCapability('playwright'), false)
+  assert.equal(runtimeState('playwright', 'opencode'), 'dormant',
+    'a present-but-disabled entry is installed, not exposed to the agent')
+})
+
+test('Claude and Codex still use remove-and-stash, preserving credentials', async () => {
+  seed()
+  await install({
+    capabilityIds: ['supabase'],
+    agents: ['claude', 'codex'],
+    projectDir: sandbox,
+    inputs: { SUPABASE_PROJECT_REF: 'stashref' },
+    secrets: { SUPABASE_ACCESS_TOKEN: 'sbp_stash_secret' },
+  })
+  for (const agent of ['claude', 'codex'] as const) {
+    assert.ok(!adapters[agent].setEnabled, `${agent} should not claim a native disable`)
+    assert.equal(deactivate('supabase', agent).success, true)
+    const stash = dormantStore.get('supabase', agent)
+    assert.ok(stash, `${agent} must stash the entry it removed`)
+    assert.equal(stash!.entry.env.SUPABASE_ACCESS_TOKEN, 'sbp_stash_secret')
+    assert.equal(activate('supabase', agent).success, true)
+    assert.equal(adapters[agent].read(getCapability('supabase'))!.env.SUPABASE_ACCESS_TOKEN, 'sbp_stash_secret')
+  }
 })
 
 // --- run --------------------------------------------------------------------

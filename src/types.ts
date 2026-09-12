@@ -17,6 +17,7 @@ export type Capability = {
   source: string
   install?: { command: string; args: string[] }
   requires?: { binaries?: string[]; note?: string }
+  triggers?: CapabilityActivationTrigger[]
   plugin?: { marketplace: string; repo: string; name: string }
   secrets?: Array<{ key: string; label: string; help?: string }>
   inputs?: Array<{ key: string; label: string; help?: string }>
@@ -85,6 +86,23 @@ export type CapabilityProfile = {
   activeCapabilityIds: string[]
 }
 
+export type CapabilityActivationTrigger = { type: 'file_glob' | 'branch_glob'; pattern: string }
+
+export type TriggerDefinition = {
+  capabilityId: string
+  capabilityName: string
+  triggers: CapabilityActivationTrigger[]
+}
+
+export type TriggerEvent = {
+  capabilityId: string
+  capabilityName: string
+  agent: AgentKey
+  pattern: string
+  path: string
+  result: RuntimeMutationResult
+}
+
 export type ClmRow = {
   capability: Capability
   agents: Array<{ agent: AgentKey; agentName: string; state: CapabilityRuntimeState }>
@@ -134,6 +152,11 @@ export type AgentPackApi = {
   clmMeasure(projectDir?: string): Promise<number>
   clmSetState(req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }): Promise<RuntimeMutationResult>
   clmLog(): Promise<unknown[]>
+  clmTriggers(): Promise<TriggerDefinition[]>
+  clmStartWatch(projectDir: string): Promise<{ watching: string }>
+  clmStopWatch(): Promise<null>
+  clmWatchStatus(): Promise<{ watching: string } | null>
+  onTrigger(cb: (e: TriggerEvent) => void): () => void
   detectAgents(): Promise<DetectedAgent[]>
   listRegistry(): Promise<{ capabilities: Capability[]; packs: Pack[] }>
   analyze(dir: string): Promise<Analysis>

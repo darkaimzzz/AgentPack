@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentKey, ClmView, ClmRow, CapabilityProfile } from '../types.ts'
+import type { AgentKey, ClmView, ClmRow, CapabilityProfile, TriggerEvent } from '../types.ts'
 
 type UiState = 'loading' | 'ready' | 'mutating' | 'partial_failure' | 'error'
 
@@ -17,6 +17,8 @@ export default function Dashboard() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [measuring, setMeasuring] = useState(false)
+  const [watching, setWatching] = useState<string | null>(null)
+  const [fired, setFired] = useState<TriggerEvent[]>([])
 
   const refresh = useCallback(async () => {
     try {
@@ -31,6 +33,30 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+  useEffect(() => { window.agentpack.clmWatchStatus().then((s) => setWatching(s?.watching ?? null)) }, [])
+
+  // A trigger fires in main; the UI reacts rather than polling.
+  useEffect(() => window.agentpack.onTrigger((e) => {
+    setFired((prev) => [e, ...prev].slice(0, 5))
+    refresh()
+  }), [refresh])
+
+  async function toggleWatch() {
+    try {
+      if (watching) {
+        await window.agentpack.clmStopWatch()
+        setWatching(null)
+      } else {
+        const dir = await window.agentpack.pickDirectory()
+        if (!dir) return
+        const r = await window.agentpack.clmStartWatch(dir)
+        setWatching(r.watching)
+      }
+    } catch (e) {
+      setMessage(`Could not watch that folder: ${(e as Error).message}`)
+      setUi('error')
+    }
+  }
 
   async function toggle(row: ClmRow, agent: AgentKey, to: 'active' | 'dormant') {
     setBusyId(`${row.capability.id}:${agent}`)
@@ -166,6 +192,30 @@ export default function Dashboard() {
           : 'Current state does not match any profile.'}
       </p>
 
+      {/* --- automatic activation ------------------------------------------ */}
+      <div className="section-label">Automatic activation</div>
+      <div className="card clm-row">
+        <div className="grow">
+          <div className="title">{watching ? 'Watching for matching files' : 'Not watching'}</div>
+          <div className="meta mono" style={{ marginTop: 4 }}>
+            {watching ?? 'pick a project folder to activate capabilities as their files appear'}
+          </div>
+        </div>
+        <button className="btn small" onClick={toggleWatch}>
+          {watching ? 'Stop' : 'Watch a project…'}
+        </button>
+      </div>
+
+      {fired.map((e, i) => (
+        <div key={i} className="banner">
+          <div className="h">{e.capabilityName} activated automatically</div>
+          <div className="meta">
+            {e.path} matched <code>{e.pattern}</code> → activated in {e.agent}
+            {!e.result.success && <span className="caveat"> — but the change failed: {e.result.error}</span>}
+          </div>
+        </div>
+      ))}
+
       {/* --- capabilities -------------------------------------------------- */}
       <div className="section-label">Capabilities</div>
       {view.rows.map((row) => (
@@ -183,6 +233,12 @@ export default function Dashboard() {
                   ? <span className="caveat">{row.cost.note}</span>
                   : 'cost not measured yet'}
             </div>
+            {row.capability.triggers?.length && (
+              <div className="meta" style={{ marginTop: 4 }}>
+                <span className="tag">AUTO</span>{' '}
+                <span className="mono">{row.capability.triggers.map((t) => t.pattern).join('  ')}</span>
+              </div>
+            )}
             <div className="meta clm-agents">
               {row.agents.map((a) => (
                 <span key={a.agent} className={`agentchip ${a.state}`}>

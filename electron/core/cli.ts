@@ -16,6 +16,7 @@
 //   node electron/core/cli.ts clm log
 //   node electron/core/cli.ts clm profiles
 //   node electron/core/cli.ts clm use <profile> [--dry]
+//   node electron/core/cli.ts clm watch [dir]           # activate on matching files
 import { detectAgents, adapters } from './agents/index.ts'
 import { capabilities, packs, getPack } from './capabilities/registry.ts'
 import { scanProject } from './detection/project.ts'
@@ -28,6 +29,7 @@ import {
 import { listRuntime, setState, reconcile, log as mutationLog } from './clm/state.ts'
 import { measureCost, cachedCost, totalCost } from './clm/cost.ts'
 import { profiles, planProfile, applyProfile, currentProfile } from './clm/profiles.ts'
+import { startWatching, triggerDefinitions } from './clm/trigger.ts'
 import type { AgentKey, ProgressEvent } from './types.ts'
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`
@@ -274,6 +276,19 @@ if (cmd === 'detect') {
       : r.status === 'partial' ? `${red('partial')} — some changes failed; see above`
       : bad_('no changes applied'))
     process.exit(r.status === 'ok' ? 0 : 1)
+  } else if (sub === 'watch') {
+    const dir = rest[1] ?? process.cwd()
+    const defs = triggerDefinitions()
+    if (!defs.length) { console.log('no capability declares a trigger'); process.exit(1) }
+    console.log(`Watching ${dir}\n`)
+    for (const d of defs) console.log(`  ${d.capabilityName.padEnd(20)} ${dim(d.triggers.map((t) => t.pattern).join('  '))}`)
+    console.log(dim('\nonly DORMANT capabilities are activated. ctrl-c to stop.\n'))
+    startWatching(dir, (e) => {
+      console.log(e.result.success
+        ? ok(`${e.capabilityName} activated in ${e.agent} ${dim(`— ${e.path} matched ${e.pattern}`)}`)
+        : bad_(`${e.capabilityName} / ${e.agent}: ${e.result.error}`))
+    })
+    await new Promise(() => {}) // run until interrupted
   } else if (sub === 'log') {
     for (const e of mutationLog().slice(-25)) {
       console.log(`${dim(e.at.slice(11, 19))}  ${e.capabilityId.padEnd(20)} ${e.agent.padEnd(9)} ${e.from} → ${e.to} ${e.success ? green('ok') : red('failed: ' + e.error)}`)

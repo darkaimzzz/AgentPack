@@ -11,6 +11,12 @@ export type ToolDefinition = {
   [key: string]: unknown
 }
 
+/** An automatic activation rule. */
+export type CapabilityActivationTrigger = {
+  type: 'file_glob' | 'branch_glob'
+  pattern: string
+}
+
 /** Whether a capability is currently exposed to an agent (CLM). */
 export type CapabilityRuntimeState = 'active' | 'dormant' | 'unknown'
 
@@ -64,6 +70,8 @@ export type Capability = {
    * check up front rather than reporting a hollow success.
    */
   requires?: { binaries?: string[]; note?: string }
+  /** Automatic activation rules (CLM, PRD §12). */
+  triggers?: CapabilityActivationTrigger[]
   /** Env vars the user must supply. Values never live in the registry, or the ledger. */
   secrets?: Array<{ key: string; label: string; help?: string }>
   /**

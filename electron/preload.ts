@@ -21,6 +21,16 @@ const api = {
   clmMeasure: (projectDir?: string) => ipcRenderer.invoke('clm:measure', projectDir),
   clmSetState: (req: unknown) => ipcRenderer.invoke('clm:setState', req),
   clmLog: () => ipcRenderer.invoke('clm:log'),
+  clmTriggers: () => ipcRenderer.invoke('clm:triggers'),
+  clmStartWatch: (projectDir: string) => ipcRenderer.invoke('clm:startWatch', projectDir),
+  clmStopWatch: () => ipcRenderer.invoke('clm:stopWatch'),
+  clmWatchStatus: () => ipcRenderer.invoke('clm:watchStatus'),
+  /** Fired when a file-pattern trigger activates a capability. */
+  onTrigger: (cb: (e: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload)
+    ipcRenderer.on('clm:trigger', handler)
+    return () => ipcRenderer.off('clm:trigger', handler)
+  },
 
   /** Subscribe to live install progress. Returns an unsubscribe function. */
   onProgress: (cb: (e: unknown) => void) => {

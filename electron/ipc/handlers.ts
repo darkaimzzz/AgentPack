@@ -7,6 +7,7 @@ import { install, rollback, type InstallRequest } from '../core/installer/instal
 import { clmView, measureAll } from '../core/clm/view.ts'
 import { setState, log as mutationLog } from '../core/clm/state.ts'
 import { profiles, applyProfile, planProfile } from '../core/clm/profiles.ts'
+import { startWatching, triggerDefinitions, type WatchHandle } from '../core/clm/trigger.ts'
 import type { AgentKey, ProgressEvent } from '../core/types.ts'
 
 /**
@@ -14,6 +15,9 @@ import type { AgentKey, ProgressEvent } from '../core/types.ts'
  * The renderer cannot execute a command — it can only ask for one of these.
  */
 export function registerHandlers(win: BrowserWindow) {
+  // One watcher at a time. Kept in main so the renderer cannot hold a handle
+  // to a filesystem watcher.
+  let watcher: WatchHandle | null = null
   ipcMain.handle('agents:detect', () => detectAgents())
 
   ipcMain.handle('registry:list', () => ({ capabilities: capabilities(), packs: packs() }))
@@ -49,6 +53,21 @@ export function registerHandlers(win: BrowserWindow) {
   ipcMain.handle('clm:applyProfile', (_e, profileId: string) => applyProfile(profileId))
   ipcMain.handle('clm:measure', (_e, projectDir?: string) => measureAll(projectDir ?? process.cwd()))
   ipcMain.handle('clm:log', () => mutationLog().slice(-100))
+  ipcMain.handle('clm:triggers', () => triggerDefinitions())
+  ipcMain.handle('clm:watchStatus', () => (watcher ? { watching: watcher.watching } : null))
+  ipcMain.handle('clm:stopWatch', () => {
+    watcher?.stop()
+    watcher = null
+    return null
+  })
+  ipcMain.handle('clm:startWatch', (_e, projectDir: string) => {
+    watcher?.stop()
+    watcher = startWatching(projectDir, (event) => {
+      if (!win.isDestroyed()) win.webContents.send('clm:trigger', event)
+    })
+    return { watching: watcher.watching }
+  })
+
   ipcMain.handle(
     'clm:setState',
     (_e, req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }) =>

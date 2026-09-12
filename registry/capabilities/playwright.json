@@ -16,5 +16,23 @@
     "claude",
     "codex",
     "opencode"
+  ],
+  "triggers": [
+    {
+      "type": "file_glob",
+      "pattern": "**/*.spec.ts"
+    },
+    {
+      "type": "file_glob",
+      "pattern": "**/*.spec.js"
+    },
+    {
+      "type": "file_glob",
+      "pattern": "**/*.test.ts"
+    },
+    {
+      "type": "file_glob",
+      "pattern": "**/e2e/**"
+    }
   ]
 }

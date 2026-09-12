@@ -61,6 +61,16 @@ export const opencode: AgentAdapter = {
     })
   },
 
+  /**
+   * OpenCode has a native `enabled` flag, so dormancy here is a one-field flip:
+   * the command and its environment stay exactly where they are.
+   */
+  setEnabled(cap: Capability, enabled: boolean) {
+    const p = this.configPath()
+    if (!load(p).mcp?.[cap.id]) return
+    editJsonc(p, ['mcp', cap.id, 'enabled'], enabled)
+  },
+
   remove(cap: Capability) {
     const p = this.configPath()
     if (!existsSync(p)) return

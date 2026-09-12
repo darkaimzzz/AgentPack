@@ -44,6 +44,15 @@ export type AgentAdapter = {
    * swallow, so callers can tell a broken config from an empty one.
    */
   validate(): { ok: boolean; error?: string }
+  /**
+   * Disable a capability in place, keeping its entry and credentials.
+   *
+   * Only for formats with a native flag — OpenCode's `enabled`. Where this
+   * exists, dormancy never removes anything and never needs the credential
+   * stash, which is strictly safer. Agents without it fall back to
+   * remove-and-stash.
+   */
+  setEnabled?(cap: Capability, enabled: boolean): void
 
   /**
    * Plugin support. Only agents with a git-marketplace model implement these —
