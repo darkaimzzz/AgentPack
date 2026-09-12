@@ -156,8 +156,10 @@ export default function App() {
           </nav>
         )}
         <div className="wincontrols">
-          <button title="Minimise" aria-label="Minimise" onClick={() => windowCmd('minimizeWindow')}>–</button>
-          <button title="Maximise" aria-label="Maximise" onClick={() => windowCmd('toggleMaximizeWindow')}>□</button>
+          {/* Glyphs like – and □ sit off-centre in whatever font resolves, so
+              these two are drawn as shapes in CSS. */}
+          <button className="min" title="Minimise" aria-label="Minimise" onClick={() => windowCmd('minimizeWindow')} />
+          <button className="max" title="Maximise" aria-label="Maximise" onClick={() => windowCmd('toggleMaximizeWindow')} />
           <button className="x" title="Close" aria-label="Close" onClick={() => windowCmd('closeWindow')}>✕</button>
         </div>
       </header>

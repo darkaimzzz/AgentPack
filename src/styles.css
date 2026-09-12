@@ -133,6 +133,13 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .wincontrols button:active { transform: translateY(1px); }
 .wincontrols button.x:hover { background: #fff; color: var(--bezel-lo); }
 
+/* Drawn rather than typed, so they sit on the true centre of the button at
+   any font. currentColor keeps them in step with the hover states above. */
+.wincontrols .min::before,
+.wincontrols .max::before { content: ""; display: block; }
+.wincontrols .min::before { width: 10px; height: 2px; background: currentColor; border-radius: 1px; }
+.wincontrols .max::before { width: 9px; height: 9px; border: 2px solid currentColor; border-radius: 2px; }
+
 /* Steps sit next to the mode switch now that the window controls own the
    right-hand edge. */
 .steps { display: flex; gap: 6px; }
