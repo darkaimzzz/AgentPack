@@ -42,7 +42,9 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   // Preflight before any mutation: a missing runtime is one clear message here
   // rather than three cryptic spawn failures later (CLAUDE.md §12).
   onProgress({ kind: 'stage', stage: 'preflight' })
-  const pre = await preflight(caps.filter((c) => c.type !== 'plugin'))
+  // Every capability, plugins included: a plugin has no launcher command, but it
+  // may still declare a CLI it cannot work without.
+  const pre = await preflight(caps)
   for (const b of pre.binaries) {
     onProgress({
       kind: 'stage',

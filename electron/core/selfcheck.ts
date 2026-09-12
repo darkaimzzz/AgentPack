@@ -644,6 +644,39 @@ test('rolling back a plugin removes it but keeps the marketplace', async () => {
   assert.equal(after.somethingElse, 'keep')
 })
 
+test('a declared binary requirement is checked before install', async () => {
+  const beads = getCapability('beads')
+  assert.deepEqual(beads.requires?.binaries, ['bd'], 'beads must declare its CLI dependency')
+
+  // Preflight must fail when the required binary is absent, and say why.
+  const fake = { ...beads, requires: { binaries: ['definitely-not-a-real-binary-xyz'], note: 'install it first' } }
+  const r = await preflight([fake])
+  assert.equal(r.ok, false, 'a missing required binary must fail preflight')
+  assert.match(r.problems[0], /not available on PATH/)
+  assert.match(r.problems[0], /Beads/, 'should name the capability that needs it')
+  assert.match(r.problems[0], /install it first/, 'should surface the remediation note')
+})
+
+test('a plugin whose CLI is missing does not report a hollow success', async () => {
+  seed()
+  mkdirSync(join(sandbox, '.claude'), { recursive: true })
+  const beads = getCapability('beads')
+  const original = beads.requires
+  ;(beads as { requires?: unknown }).requires = { binaries: ['definitely-not-a-real-binary-xyz'] }
+  try {
+    const r = await install({ capabilityIds: ['beads'], agents: ['claude'], projectDir: sandbox })
+    assert.equal(r.preflight?.ok, false)
+    assert.equal(r.capabilities[0].results[0].status, 'failed')
+    assert.equal(r.capabilities[0].health.status, 'failed')
+    const s = existsSync(join(sandbox, '.claude', 'settings.json'))
+      ? JSON.parse(readFileSync(join(sandbox, '.claude', 'settings.json'), 'utf8'))
+      : {}
+    assert.ok(!s.enabledPlugins?.['beads@beads-marketplace'], 'nothing should have been written')
+  } finally {
+    ;(beads as { requires?: unknown }).requires = original
+  }
+})
+
 test('every registry entry declares exactly one install mechanism', () => {
   for (const c of capabilities()) {
     if (c.type === 'mcp') {

@@ -19,6 +19,12 @@ export type Capability = {
    * is deliberately not treated as equivalent.
    */
   plugin?: { marketplace: string; repo: string; name: string }
+  /**
+   * External binaries this capability needs in order to actually work.
+   * A plugin can install cleanly and still be useless without its CLI, so we
+   * check up front rather than reporting a hollow success.
+   */
+  requires?: { binaries?: string[]; note?: string }
   /** Env vars the user must supply. Values never live in the registry, or the ledger. */
   secrets?: Array<{ key: string; label: string; help?: string }>
   /**

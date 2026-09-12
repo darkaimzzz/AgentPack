@@ -25,14 +25,22 @@ async function checkBinary(name: string) {
 }
 
 export async function preflight(caps: Capability[]): Promise<PreflightResult> {
-  const needed = [...new Set(caps.filter((c) => c.install).map((c) => c.install!.command))]
+  // Launcher commands for MCP servers, plus any binary a capability declares.
+  const needed = [...new Set([
+    ...caps.filter((c) => c.install).map((c) => c.install!.command),
+    ...caps.flatMap((c) => c.requires?.binaries ?? []),
+  ])]
   const binaries = await Promise.all(
     needed.map(async (name) => ({ name, ...(await checkBinary(name)) })),
   )
   const problems = binaries
     .filter((b) => !b.found)
-    .map((b) => `${b.name} is not available on PATH — required by ${
-      caps.filter((c) => c.install?.command === b.name).map((c) => c.name).join(', ')
-    }`)
+    .map((b) => {
+      const needs = caps.filter(
+        (c) => c.install?.command === b.name || c.requires?.binaries?.includes(b.name),
+      )
+      const note = needs.map((c) => c.requires?.note).find(Boolean)
+      return `${b.name} is not available on PATH — required by ${needs.map((c) => c.name).join(', ')}${note ? `. ${note}` : ''}`
+    })
   return { ok: problems.length === 0, binaries, problems }
 }

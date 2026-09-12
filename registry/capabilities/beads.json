@@ -1,0 +1,17 @@
+{
+  "id": "beads",
+  "name": "Beads",
+  "type": "plugin",
+  "description": "Graph-based issue and dependency tracker that gives agents persistent, structured project memory.",
+  "source": "Steve Yegge — github steveyegge/beads",
+  "plugin": {
+    "marketplace": "beads-marketplace",
+    "repo": "steveyegge/beads",
+    "name": "beads"
+  },
+  "requires": {
+    "binaries": ["bd"],
+    "note": "Install the Beads CLI first: npm i -g @beads/bd (or brew install beads), then run bd init in your project."
+  },
+  "supportedAgents": ["claude", "codex"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "plannotator",
+  "name": "Plannotator",
+  "type": "plugin",
+  "description": "Review and annotate an agent's plans, diffs and HTML artifacts visually, then send the feedback straight back.",
+  "source": "backnotprop — github backnotprop/plannotator",
+  "plugin": {
+    "marketplace": "plannotator",
+    "repo": "backnotprop/plannotator",
+    "name": "plannotator"
+  },
+  "supportedAgents": ["claude", "codex"]
+}
