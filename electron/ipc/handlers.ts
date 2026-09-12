@@ -37,6 +37,11 @@ export function registerHandlers(win: BrowserWindow) {
     return path
   }
   handle('app:info', () => ({ demo: process.env.AGENTPACK_DEMO === '1', projectDir: process.env.AGENTPACK_DEMO_PROJECT ?? null }))
+  // The window is frameless, so its controls are ours to provide. These go
+  // through handle() like everything else and inherit its sender check.
+  handle('window:minimize', () => { win.minimize() })
+  handle('window:toggleMaximize', () => { win.isMaximized() ? win.unmaximize() : win.maximize() })
+  handle('window:close', () => { win.close() })
   handle('agents:detect', () => detectAgents())
   handle('registry:list', () => ({ capabilities: capabilities(), packs: packs() }))
   handle('project:analyze', (dir: string) => {

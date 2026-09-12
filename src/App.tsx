@@ -122,6 +122,11 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
+        {/* The lid: one big lens and three lamps. Decorative only. */}
+        <div className="lens" aria-hidden />
+        <div className="lamps" aria-hidden>
+          <span className="lamp red" /><span className="lamp amber" /><span className="lamp green" />
+        </div>
         <div className="brand">Agent<span>Pack</span></div>
         {demoProject && <span className="tag">Demo sandbox</span>}
         <div className="modeswitch">
@@ -140,6 +145,11 @@ export default function App() {
             ))}
           </nav>
         )}
+        <div className="wincontrols">
+          <button title="Minimise" aria-label="Minimise" onClick={() => window.agentpack.minimizeWindow()}>–</button>
+          <button title="Maximise" aria-label="Maximise" onClick={() => window.agentpack.toggleMaximizeWindow()}>□</button>
+          <button className="x" title="Close" aria-label="Close" onClick={() => window.agentpack.closeWindow()}>✕</button>
+        </div>
       </header>
 
       <main>
@@ -152,7 +162,7 @@ export default function App() {
             </div>
           )}
           {step === 'detect' && <>
-            {demoProject && <div className="banner"><div className="h">Demo workspace</div><p>Try installation and rollback with three sample agent configs.</p><button onClick={() => analyze(demoProject)}>Scan demo project</button></div>}
+            {demoProject && <div className="banner"><div className="h">Demo workspace</div><p>Try installation and rollback with three sample agent configs.</p><button className="btn small" onClick={() => analyze(demoProject)}>Scan demo project</button></div>}
             <Detect agents={agents} />
             <fieldset className="target-picker"><legend>Configure these agents</legend>
               {agents.filter(a=>a.detected).map(a=><label key={a.key}><input type="checkbox" checked={targetKeys.has(a.key)} onChange={()=>setTargetKeys(prev=>{const next=new Set(prev);next.has(a.key)?next.delete(a.key):next.add(a.key);return next})}/>{a.name}</label>)}

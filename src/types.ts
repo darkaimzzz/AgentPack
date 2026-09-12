@@ -39,6 +39,10 @@ import type {
 /** Everything the preload exposes. The renderer can do nothing else. */
 export type AgentPackApi = {
   info(): Promise<{ demo: boolean; projectDir: string | null }>
+  // --- frameless window controls ---
+  minimizeWindow(): Promise<void>
+  toggleMaximizeWindow(): Promise<void>
+  closeWindow(): Promise<void>
   // --- install flow ---
   detectAgents(): Promise<DetectedAgent[]>
   listRegistry(): Promise<{ capabilities: Capability[]; packs: Pack[] }>
