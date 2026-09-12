@@ -48,9 +48,19 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', event => event.preventDefault())
 
+  // The startup animation is off under the test harnesses: smokeTest() queries
+  // the DOM once on did-finish-load with no retry, so an intro would make it
+  // report a false failure. Carried in the URL rather than over IPC because the
+  // renderer has to know before its first paint — a round-trip would let the
+  // animation flash before the answer arrived.
+  const skipBoot = Boolean(process.env.AGENTPACK_SMOKE) || process.env.AGENTPACK_NO_BOOT === '1'
+  // Demo mode exists to show the product, so it plays the intro even when the
+  // OS asks for reduced motion — which Windows does more often than expected.
+  const forceBoot = process.env.AGENTPACK_DEMO === '1' || process.env.AGENTPACK_BOOT === '1'
+  const hash = skipBoot ? 'noboot' : forceBoot ? 'boot' : ''
   const devUrl = process.env.ELECTRON_RENDERER_URL
-  if (devUrl) win.loadURL(devUrl)
-  else win.loadFile(join(here, '../renderer/index.html'))
+  if (devUrl) win.loadURL(devUrl + (hash ? `#${hash}` : ''))
+  else win.loadFile(join(here, '../renderer/index.html'), hash ? { hash } : {})
 
   return win
 }

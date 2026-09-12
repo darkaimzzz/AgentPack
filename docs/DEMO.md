@@ -71,7 +71,12 @@ relaunch, budget for re-measuring.
 
 ### 0:00 — Act 1 · The problem, on screen
 
-The first screen already shows three detected agents. Point at them.
+The device opens, its screen lights with the logo, and the camera pulls back to leave that
+logo sitting in the app's own header. It runs about two and a half seconds; **any click or
+keypress skips it**, which is what you want on the third run of the day. Detection is already
+running underneath, so it costs no startup time.
+
+The first screen then shows three detected agents. Point at them.
 
 > "Claude Code, Codex and OpenCode are all extensible through MCP servers and plugins.
 > They also all store that configuration differently — `~/.claude.json` is JSON,

@@ -38,6 +38,8 @@ async function main() {
   process.env.AGENTPACK_HOME = home
   process.env.AGENTPACK_DEMO = '1'
   process.env.AGENTPACK_DEMO_PROJECT = project
+  // Assertions here are about the app, not the intro; keep the run deterministic.
+  process.env.AGENTPACK_NO_BOOT = '1'
   app.setPath('userData', join(home, 'electron'))
   const fixtures = {
     '.claude.json': '{"mcpServers":{},"uiFixture":true}\n',

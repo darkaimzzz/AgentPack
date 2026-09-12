@@ -415,3 +415,109 @@ label.field .help { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 .agentchip.active { color: var(--ok); border-color: var(--ok); font-weight: 600; }
 .agentchip.dormant { color: var(--muted); }
 .agentchip.unknown { opacity: .5; }
+
+/* --- boot animation --------------------------------------------------------
+   The device opens, its screen lights with the wordmark, the camera pushes in,
+   then pulls back and leaves the wordmark in the header. Everything is drawn:
+   see src/boot/Dex.tsx. Timings are percentages of one 2650ms timeline so the
+   beats stay in step with Boot.tsx's TOTAL_MS. */
+
+.boot {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% -20%, var(--bezel-hi), transparent 60%),
+    var(--bezel);
+  animation: boot-bg 2650ms both;
+}
+/* Nothing renders until the landing has been measured, so the wordmark never
+   flashes at the wrong size. */
+.boot:not(.run) .dex,
+.boot:not(.run) .boot-brand { opacity: 0; }
+
+.dex {
+  display: flex; align-items: center; perspective: 1600px;
+  /* the left panel screen, in .dex coordinates — the point the camera pushes into */
+  transform-origin: 24% 50%;
+}
+.boot.run .dex { animation: dex-shift 2650ms both cubic-bezier(.3, .8, .3, 1); }
+.dex-svg { display: block; width: 100%; height: auto; }
+.dex-panel { width: 340px; flex: none; }
+.dex-panel-left { position: relative; z-index: 3; }
+.dex-hinge { width: 26px; flex: none; position: relative; z-index: 2; opacity: 0; }
+.boot.run .dex-hinge { animation: dex-hinge 2650ms both; }
+/* No preserve-3d on purpose: the panels stay flattened, so paint order is z-index
+   and the folded panel is reliably hidden behind the face. */
+.dex-panel-right { transform-origin: left center; z-index: 1; }
+.boot.run .dex-panel-right { animation: dex-open 2650ms both; }
+
+.boot.run .dex-lamp { animation: lamp-wake 420ms both; }
+.boot.run .dex-lamp.l1 { animation-delay: 520ms; }
+.boot.run .dex-lamp.l2 { animation-delay: 640ms; }
+.boot.run .dex-lamp.l3 { animation-delay: 760ms; }
+.dex-lamp { opacity: .3; }
+
+.dex-lens-glass { transform-box: fill-box; transform-origin: center; }
+.boot.run .dex-lens { animation: lens-bloom 900ms 700ms both; }
+
+.dex-scan { opacity: 0; }
+.boot.run .dex-scan { animation: screen-on 500ms 900ms both; }
+
+/* Positioned at the header's .brand and animated *from* the device screen, so
+   the last frame is transform:none — an exact landing rather than a near miss. */
+.boot-brand {
+  position: fixed;
+  left: var(--brand-left, 50%); top: var(--brand-top, 50%);
+  z-index: 4;
+  font-family: var(--pixel); font-size: 13px; letter-spacing: .02em;
+  color: #fff; text-shadow: 0 2px 0 var(--bezel-lo);
+  white-space: nowrap; transform-origin: center;
+}
+.boot-brand span { color: #ffd76e; }
+.boot.run .boot-brand { animation: brand-fly 1700ms 950ms both; }
+
+@keyframes boot-bg {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes dex-shift {
+  0%, 11% { transform: translateX(183px) scale(.94); opacity: 1; }
+  41%, 58% { transform: translateX(0) scale(1); opacity: 1;
+             animation-timing-function: cubic-bezier(.7, 0, .85, .3); }
+  72% { transform: translateX(0) scale(2.6); opacity: 1; }
+  84% { transform: translateX(0) scale(3.4); opacity: 0; }
+  100% { transform: translateX(0) scale(3.6); opacity: 0; }
+}
+@keyframes dex-open {
+  0%, 11% { transform: rotateY(-172deg); }
+  41%, 100% { transform: rotateY(0deg); }
+}
+@keyframes dex-hinge {
+  0%, 14% { opacity: 0; }
+  38%, 100% { opacity: 1; }
+}
+@keyframes lamp-wake {
+  from { opacity: .3; filter: none; }
+  to { opacity: 1; filter: drop-shadow(0 0 5px currentColor); }
+}
+@keyframes lens-bloom {
+  from { filter: none; }
+  60% { filter: drop-shadow(0 0 14px #6cc6f5); }
+  to { filter: drop-shadow(0 0 6px #6cc6f5); }
+}
+@keyframes screen-on {
+  from { opacity: 0; }
+  to { opacity: .35; }
+}
+/* fade in on the screen, hold, punch in, then fly home to the header */
+@keyframes brand-fly {
+  0% { transform: translate(var(--dx), var(--dy)) scale(var(--s0)); opacity: 0; }
+  14% { transform: translate(var(--dx), var(--dy)) scale(var(--s0)); opacity: 1; }
+  34% { transform: translate(var(--dx), var(--dy)) scale(var(--s0)); opacity: 1;
+        animation-timing-function: cubic-bezier(.7, 0, .85, .3); }
+  58% { transform: translate(var(--dx), var(--dy)) scale(var(--s1)); opacity: 1;
+        animation-timing-function: cubic-bezier(.25, .9, .3, 1); }
+  100% { transform: translate(0, 0) scale(1); opacity: 1; }
+}
+
