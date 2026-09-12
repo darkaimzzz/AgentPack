@@ -1,6 +1,7 @@
 import { adapters } from '../agents/index.ts'
 import { getCapability, resolveArgs, missingInputs } from '../capabilities/registry.ts'
 import { backup, restore } from './backup.ts'
+import { preflight, type PreflightResult } from './preflight.ts'
 import { probe } from './health.ts'
 import * as ledger from './ledger.ts'
 import { stamp } from '../paths.ts'
@@ -28,6 +29,7 @@ export type InstallReport = {
   capabilities: CapabilityReport[]
   /** Pass this to rollback() to undo the whole run. */
   ledgerId: string
+  preflight?: PreflightResult
 }
 
 export async function install(req: InstallRequest): Promise<InstallReport> {
@@ -36,6 +38,37 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   const secretValues = Object.values(secrets)
   const caps = capabilityIds.map(getCapability)
 
+  // Preflight before any mutation: a missing runtime is one clear message here
+  // rather than three cryptic spawn failures later (CLAUDE.md §12).
+  onProgress({ kind: 'stage', stage: 'preflight' })
+  const pre = await preflight(caps)
+  for (const b of pre.binaries) {
+    onProgress({
+      kind: 'stage',
+      stage: 'preflight',
+      detail: b.found ? `${b.name} ${b.version ?? ''}`.trim() : `${b.name} NOT FOUND`,
+    })
+  }
+  if (!pre.ok) {
+    const error = pre.problems.join('; ')
+    return {
+      id: runId,
+      ledgerId: runId,
+      preflight: pre,
+      capabilities: caps.map((capability) => ({
+        capability,
+        results: agents.map((key) => ({
+          agent: key,
+          status: 'failed' as const,
+          configPath: adapters[key].configPath(),
+          backupPath: null,
+          error,
+        })),
+        health: { configured: false, reachable: false, tools: [], durationMs: 0, error },
+      })),
+    }
+  }
+
   // One backup per agent per run, taken before any mutation. Backing up per
   // capability would create redundant copies and muddle what "undo" means.
   onProgress({ kind: 'stage', stage: 'backup' })
@@ -43,6 +76,19 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     const token = backup(key, adapters[key].configPath(), runId)
     onProgress({ kind: 'stage', stage: 'backup', detail: `${adapters[key].name}: ${token.existed ? token.backupPath! : 'no existing config'}` })
     return token
+  })
+
+  // Record the ledger entry NOW, before a single byte is written. If anything
+  // below throws, the backups are still reachable and rollback still works —
+  // which is precisely the moment it matters.
+  ledger.record({
+    id: runId,
+    at: new Date().toISOString(),
+    projectDir,
+    capabilities: capabilityIds,
+    secretKeys: Object.keys(secrets), // names only
+    inputs, // non-secret by contract, so recorded in full for reproducibility
+    backups,
   })
 
   const reports: CapabilityReport[] = []
@@ -114,18 +160,8 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     reports.push({ capability: cap, results, health })
   }
 
-  ledger.record({
-    id: runId,
-    at: new Date().toISOString(),
-    projectDir,
-    capabilities: capabilityIds,
-    secretKeys: Object.keys(secrets), // names only
-    inputs, // non-secret by contract, so recorded in full for reproducibility
-    backups,
-  })
-
   onProgress({ kind: 'stage', stage: 'done' })
-  return { id: runId, capabilities: reports, ledgerId: runId }
+  return { id: runId, capabilities: reports, ledgerId: runId, preflight: pre }
 }
 
 /**
@@ -139,4 +175,25 @@ export function rollback(ledgerId?: string): { restored: string[]; entryId: stri
   for (const token of entry.backups) restore(token)
   ledger.markRolledBack(entry.id)
   return { restored: entry.backups.filter((b) => b.existed).map((b) => b.configPath), entryId: entry.id }
+}
+
+/**
+ * Undo every run that has not been rolled back, newest first.
+ *
+ * Order matters: restoring the oldest backup last leaves the configs exactly as
+ * they were before the first install. Used between demo runs so the machine is
+ * reset without manual repair (CLAUDE.md §24).
+ */
+export function rollbackAll(): { entries: string[]; restored: string[] } {
+  const undone: string[] = []
+  const restored = new Set<string>()
+  for (const entry of [...ledger.entries()].filter((e) => !e.rolledBackAt).reverse()) {
+    for (const token of entry.backups) {
+      restore(token)
+      if (token.existed) restored.add(token.configPath)
+    }
+    ledger.markRolledBack(entry.id)
+    undone.push(entry.id)
+  }
+  return { entries: undone, restored: [...restored] }
 }

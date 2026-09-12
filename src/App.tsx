@@ -313,6 +313,7 @@ function Plan({
 /* ---------------------------------------------------------------- screen 5 */
 
 const STAGE_LABELS: Record<string, string> = {
+  preflight: 'Checking runtimes',
   backup: 'Backing up',
   configure: 'Writing config',
   validate: 'Validating',
@@ -327,7 +328,7 @@ function Progress({ events, chosen, busy }: { events: ProgressEvent[]; chosen: C
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [events, showLogs])
 
-  const stages = ['backup', 'configure', 'validate']
+  const stages = ['preflight', 'backup', 'configure', 'validate']
   const seen = new Set(events.filter((e) => e.kind === 'stage').map((e) => (e as { stage: string }).stage))
   const done = seen.has('done')
 

@@ -69,15 +69,35 @@ node electron/core/cli.ts scan
 # install a pack across every detected agent
 node electron/core/cli.ts install --pack fullstack
 
-# undo the last run
+# undo the last run, or every run
 node electron/core/cli.ts rollback
+node electron/core/cli.ts rollback --all
+
+# what is configured right now
+node electron/core/cli.ts status
+
+# export what you have, and reproduce it on another machine
+node electron/core/cli.ts export my-setup.json
+node electron/core/cli.ts import my-setup.json
 ```
 
-Run the engine's self-checks:
+Checks:
 
 ```bash
-npm run check
+npm run check      # 28 engine self-checks, in a temp sandbox
+npm run smoke      # loads the real window, exercises preload + IPC headlessly
+npm run rehearse   # runs the whole golden path 3x, asserts byte-identical restore
 ```
+
+### Before a demo
+
+```bash
+npm run prewarm
+```
+
+A cold `npx -y <pkg>` fetches from the network, turning a 4-second validation into a minute
+or a timeout on conference wi-fi. Prewarming downloads every registry server ahead of time.
+This is the single biggest live-demo risk.
 
 ### Trying it safely
 
@@ -170,7 +190,7 @@ Honesty matters more than a clean demo, so:
 | 0 — Viability spike | ✅ |
 | 1 — Engine: registry, adapters, install, health, rollback | ✅ |
 | 2 — Project detection + recommendations | ✅ |
-| 3 — Electron desktop UI | 🔨 |
-| 4 — Rehearsal + polish | — |
+| 3 — Electron desktop UI | ✅ |
+| 4 — Hardening, rehearsal harness, pack export/import | ✅ |
 
 Windows desktop is the target platform; the engine itself is platform-neutral.

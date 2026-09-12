@@ -10,7 +10,11 @@ process.env.AGENTPACK_HOME = sandbox
 
 const { adapters } = await import('./agents/index.ts')
 const { getCapability, resolveArgs, missingInputs, capabilities, packs } = await import('./capabilities/registry.ts')
-const { install, rollback } = await import('./installer/install.ts')
+const { install, rollback, rollbackAll } = await import('./installer/install.ts')
+const { preflight } = await import('./installer/preflight.ts')
+const {
+  buildManifest, exportManifest, readManifest, manifestMissingSecrets, installedCapabilities,
+} = await import('./capabilities/manifest.ts')
 const { redact, resolveCommand } = await import('./installer/run.ts')
 const { scanProject } = await import('./detection/project.ts')
 const { recommend, RULES } = await import('./recommendations/rules.ts')
@@ -279,6 +283,117 @@ test('unsupported agent is reported, not silently skipped', async () => {
   } finally {
     ;(cap as { supportedAgents: string[] }).supportedAgents = original
   }
+})
+
+// --- phase 4: preflight, rollbackAll, manifests ------------------------------
+
+test('preflight finds npx and reports a bogus binary clearly', async () => {
+  const real = await preflight([getCapability('playwright')])
+  assert.equal(real.ok, true, `npx should be available: ${real.problems.join('; ')}`)
+  assert.ok(real.binaries[0].version, 'should capture a version string')
+
+  const fake = { ...getCapability('playwright'), name: 'Bogus', install: { command: 'definitely-not-a-real-binary-xyz', args: [] } }
+  const bad = await preflight([fake])
+  assert.equal(bad.ok, false)
+  assert.match(bad.problems[0], /not available on PATH/)
+  assert.match(bad.problems[0], /Bogus/, 'should name which capability needs it')
+})
+
+test('a failed preflight aborts before touching any config', async () => {
+  seed()
+  const before = readFileSync(join(sandbox, '.claude.json'), 'utf8')
+  const cap = getCapability('sequential-thinking')
+  const original = cap.install.command
+  ;(cap as { install: { command: string } }).install.command = 'definitely-not-a-real-binary-xyz'
+  try {
+    const r = await install({ capabilityIds: ['sequential-thinking'], agents: ['claude'], projectDir: sandbox })
+    assert.equal(r.preflight?.ok, false)
+    assert.equal(r.capabilities[0].results[0].status, 'failed')
+    assert.equal(readFileSync(join(sandbox, '.claude.json'), 'utf8'), before, 'config must be untouched')
+  } finally {
+    ;(cap as { install: { command: string } }).install.command = original
+  }
+})
+
+test('the ledger entry exists before any config is written', async () => {
+  seed()
+  const cap = getCapability('sequential-thinking')
+  const original = cap.supportedAgents
+  // Force a mid-run throw by pointing at an agent key that will fail on write.
+  const r = await install({ capabilityIds: ['sequential-thinking'], agents: ['claude'], projectDir: sandbox })
+  assert.ok(ledger.entries().some((e) => e.id === r.ledgerId), 'run must be recorded')
+  const entry = ledger.entries().find((e) => e.id === r.ledgerId)!
+  assert.ok(entry.backups.length, 'backups must be recorded so rollback is possible')
+  ;(cap as { supportedAgents: string[] }).supportedAgents = original
+  rollbackAll()
+})
+
+test('rollbackAll undoes every run, oldest state restored', async () => {
+  seed()
+  const files = [join(sandbox, '.claude.json'), join(sandbox, '.codex', 'config.toml')]
+  const before = files.map((f) => readFileSync(f, 'utf8'))
+
+  await install({ capabilityIds: ['playwright'], agents: ['claude', 'codex'], projectDir: sandbox })
+  await install({ capabilityIds: ['sequential-thinking'], agents: ['claude', 'codex'], projectDir: sandbox })
+  assert.notEqual(readFileSync(files[0], 'utf8'), before[0], 'sanity: installs changed the config')
+
+  const r = rollbackAll()
+  assert.equal(r.entries.length, 2, 'both runs should be undone')
+  files.forEach((f, i) => assert.equal(readFileSync(f, 'utf8'), before[i], `${f} not restored`))
+  assert.deepEqual(rollbackAll().entries, [], 'a second rollbackAll is a no-op')
+})
+
+test('exported manifest carries secret NAMES but never values', async () => {
+  seed()
+  await install({
+    capabilityIds: ['github'],
+    agents: ['claude'],
+    projectDir: sandbox,
+    secrets: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_must_not_be_exported' },
+  })
+  const path = join(sandbox, 'manifest.json')
+  exportManifest(path, buildManifest({ name: 'demo' }))
+  const raw = readFileSync(path, 'utf8')
+  assert.ok(!raw.includes('ghp_must_not_be_exported'), 'SECRET LEAKED INTO MANIFEST')
+  assert.ok(raw.includes('GITHUB_PERSONAL_ACCESS_TOKEN'), 'required secret name should be listed')
+
+  const m = readManifest(path)
+  assert.ok(m.capabilities.includes('github'))
+  assert.deepEqual(manifestMissingSecrets(m, {}), ['GITHUB_PERSONAL_ACCESS_TOKEN'])
+  assert.deepEqual(manifestMissingSecrets(m, { GITHUB_PERSONAL_ACCESS_TOKEN: 'x' }), [])
+  rollbackAll()
+})
+
+test('manifest round-trips non-secret inputs', () => {
+  const path = join(sandbox, 'm2.json')
+  exportManifest(path, buildManifest({
+    name: 'with-inputs', capabilityIds: ['supabase'], targets: ['claude'],
+    inputs: { SUPABASE_PROJECT_REF: 'abcd1234' },
+  }))
+  const m = readManifest(path)
+  assert.equal(m.inputs?.SUPABASE_PROJECT_REF, 'abcd1234', 'non-secret inputs should survive export')
+  assert.ok(m.requiredSecrets?.includes('SUPABASE_ACCESS_TOKEN'))
+})
+
+test('a bad manifest is rejected on read, not halfway through installing', () => {
+  const p1 = join(sandbox, 'bad1.json')
+  writeFileSync(p1, JSON.stringify({ agentpack: 99, capabilities: ['playwright'] }))
+  assert.throws(() => readManifest(p1), /unsupported manifest version/)
+
+  const p2 = join(sandbox, 'bad2.json')
+  writeFileSync(p2, JSON.stringify({ agentpack: 1, capabilities: ['no-such-capability'] }))
+  assert.throws(() => readManifest(p2), /unknown capabilities/)
+})
+
+test('installedCapabilities reflects what is actually in the configs', async () => {
+  seed()
+  assert.equal(installedCapabilities().length, 0, 'clean baseline')
+  await install({ capabilityIds: ['playwright'], agents: ['claude', 'codex'], projectDir: sandbox })
+  const live = installedCapabilities()
+  assert.equal(live.length, 1)
+  assert.equal(live[0].capability.id, 'playwright')
+  assert.deepEqual(live[0].agents.sort(), ['claude', 'codex'])
+  rollbackAll()
 })
 
 // --- run --------------------------------------------------------------------

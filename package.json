@@ -11,7 +11,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env})\""
+    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env})\"",
+    "rehearse": "node electron/core/rehearse.ts",
+    "prewarm": "node electron/core/cli.ts prewarm"
   },
   "dependencies": {
     "react": "^19.3.0",
