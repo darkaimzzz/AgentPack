@@ -33,6 +33,11 @@ function createWindow() {
     backgroundColor: '#c62828',
     // The app draws its own title bar; see .topbar in src/styles.css.
     frame: false,
+    // Packaged builds take the taskbar icon from the executable's own resource,
+    // which electron-builder writes from build/icon.ico. Unpackaged runs have no
+    // such resource, so point them at the same file or dev shows Electron's
+    // default icon.
+    ...(app.isPackaged ? {} : { icon: join(here, '../../build/icon.ico') }),
     webPreferences: {
       preload: join(here, '../preload/index.cjs'),
       // The renderer gets no Node and no direct filesystem or process access.

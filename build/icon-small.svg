@@ -1,0 +1,14 @@
+<!-- AgentPack app icon — small sizes (16, 24, 32px), which is what the Windows
+     taskbar actually shows. Detail is dropped on purpose: the lamps and D-pad
+     turn to mush below 48px, so this keeps only the silhouette, the lens and
+     the screen, drawn with heavier strokes that survive downscaling.
+     Regenerate build/icon.ico with:  node scripts/make-icon.mjs -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect x="36" y="26" width="440" height="460" rx="76" fill="#cf2434" stroke="#1a1a1a" stroke-width="28"/>
+
+  <!-- lens: the one detail that still reads at 16px -->
+  <circle cx="158" cy="142" r="62" fill="#29a8e0" stroke="#f2efe9" stroke-width="26"/>
+
+  <!-- screen -->
+  <rect x="104" y="250" width="304" height="186" rx="26" fill="#12161a" stroke="#f2efe9" stroke-width="24"/>
+</svg>
