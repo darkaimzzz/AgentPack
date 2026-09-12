@@ -93,11 +93,72 @@ test('detects a Next.js + Supabase project and explains why', () => {
 
   const recs = recommend(scan)
   const recIds = recs.map((r) => r.capability.id)
-  assert.deepEqual(recIds.sort(), ['filesystem', 'github', 'playwright', 'supabase'])
+  assert.deepEqual(recIds.sort(), ['context7', 'filesystem', 'github', 'playwright', 'supabase'])
   for (const r of recs) {
     assert.ok(!r.reason.includes('{evidence}'), 'reason template not filled')
     assert.ok(r.matched.length, 'recommendation carries no matching signal')
   }
+})
+
+test('a monorepo finds dependencies in workspace packages', () => {
+  const dir = fixture('mono', {
+    'package.json': JSON.stringify({ private: true, workspaces: ['apps/*'], devDependencies: { turbo: '2.3.0' } }),
+  })
+  mkdirSync(join(dir, 'apps', 'web'), { recursive: true })
+  writeFileSync(join(dir, 'apps', 'web', 'package.json'), JSON.stringify({
+    dependencies: { next: '15.1.0', react: '19.0.0', '@supabase/supabase-js': '2.45.0' },
+  }))
+  const scan = scanProject(dir)
+  const ids = scan.signals.map((s) => s.id)
+  for (const want of ['nextjs', 'react', 'supabase', 'monorepo']) {
+    assert.ok(ids.includes(want), `monorepo missed ${want} (got ${ids.join(', ')})`)
+  }
+  assert.equal(scan.manifests.length, 2, 'both root and workspace manifests should be read')
+  // Evidence must name the file it came from, not just "package.json".
+  const next = scan.signals.find((s) => s.id === 'nextjs')!
+  // Separator is \ on Windows, / elsewhere.
+  assert.match(next.evidence, /apps[\\/]web[\\/]package\.json/, 'evidence should point at the workspace manifest')
+  assert.ok(recommend(scan).some((r) => r.capability.id === 'supabase'))
+})
+
+test('undeclared apps/ and packages/ layouts are still scanned', () => {
+  const dir = fixture('implicit-mono', { 'package.json': JSON.stringify({ name: 'root' }) })
+  mkdirSync(join(dir, 'packages', 'api'), { recursive: true })
+  writeFileSync(join(dir, 'packages', 'api', 'package.json'), JSON.stringify({ dependencies: { fastify: '5.0.0' } }))
+  const ids = scanProject(dir).signals.map((s) => s.id)
+  assert.ok(ids.includes('fastify'), 'conventional packages/* layout should be scanned even when undeclared')
+})
+
+test('a dependency family is matched by scope, not one exact name', () => {
+  const dir = fixture('modern-supabase', {
+    'package.json': JSON.stringify({ dependencies: { '@supabase/ssr': '0.5.2', next: '15.1.0', tailwindcss: '4.0.0' } }),
+  })
+  const scan = scanProject(dir)
+  const ids = scan.signals.map((s) => s.id)
+  // @supabase/ssr is the current Next.js integration; matching only
+  // @supabase/supabase-js missed most real projects.
+  assert.ok(ids.includes('supabase'), '@supabase/ssr should count as Supabase')
+  assert.ok(ids.includes('tailwind'))
+  assert.ok(recommend(scan).some((r) => r.capability.id === 'supabase'))
+})
+
+test('pnpm workspaces are followed', () => {
+  const dir = fixture('pnpm', {
+    'package.json': JSON.stringify({ name: 'root' }),
+    'pnpm-workspace.yaml': ['packages:', "  - 'site'", ''].join('\n'),
+  })
+  mkdirSync(join(dir, 'site'), { recursive: true })
+  writeFileSync(join(dir, 'site', 'package.json'), JSON.stringify({ dependencies: { astro: '5.0.0' } }))
+  const ids = scanProject(dir).signals.map((s) => s.id)
+  assert.ok(ids.includes('astro'), 'pnpm-workspace.yaml members should be scanned')
+})
+
+test('python frameworks are detected from requirements', () => {
+  const dir = fixture('py-django', { 'requirements.txt': ['Django==5.1', 'psycopg2-binary==2.9', ''].join('\n') })
+  const ids = scanProject(dir).signals.map((s) => s.id)
+  assert.ok(ids.includes('python'))
+  assert.ok(ids.includes('django'))
+  assert.ok(ids.includes('postgres'), 'psycopg implies PostgreSQL')
 })
 
 test('a bare Python project gets no browser tooling', () => {

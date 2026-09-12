@@ -1,5 +1,5 @@
 import { capabilities } from '../capabilities/registry.ts'
-import type { ProjectScan, Signal } from '../detection/project.ts'
+import { FRONTEND_SIGNALS, type ProjectScan, type Signal } from '../detection/project.ts'
 import type { Capability } from '../types.ts'
 
 /**
@@ -21,23 +21,30 @@ export type Rule = {
 export const RULES: Rule[] = [
   {
     capabilityId: 'github',
-    anyOf: ['git', 'github-env'],
+    anyOf: ['git', 'github-env', 'ci'],
     because: 'Repository tooling is useful here — {evidence}.',
   },
   {
     capabilityId: 'playwright',
-    anyOf: ['nextjs', 'vite', 'react', 'svelte', 'vue'],
+    anyOf: [...FRONTEND_SIGNALS, 'cypress', 'playwright-installed'],
     because: 'A frontend was detected, so browser and E2E tooling helps — {evidence}.',
   },
   {
     capabilityId: 'filesystem',
-    anyOf: ['node', 'python', 'git'],
+    anyOf: ['node', 'python', 'git', 'go', 'rust', 'java', 'ruby', 'php', 'dotnet'],
     because: 'Scoped file access for this project — {evidence}.',
   },
   {
     capabilityId: 'supabase',
     anyOf: ['supabase'],
     because: 'Supabase is part of this stack — {evidence}.',
+  },
+  {
+    capabilityId: 'context7',
+    // Any project built on a framework benefits from version-correct docs.
+    anyOf: [...FRONTEND_SIGNALS, 'nestjs', 'express', 'fastify', 'hono', 'trpc',
+      'django', 'fastapi', 'flask', 'prisma', 'drizzle', 'tailwind'],
+    because: 'Version-accurate docs for the libraries in this stack — {evidence}.',
   },
 ]
 
