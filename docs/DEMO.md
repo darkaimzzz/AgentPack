@@ -170,8 +170,9 @@ reduction**. With the Local Developer pack installed, our tested run reads
 > the serialized `tools/list` response, characters divided by four. An estimate of schema
 > size, not billed tokens — and the screen says exactly that."
 
-*(If the bar says capabilities have no measurement, click **measure now** — that probes
-each server for real. It should already be done from the dry run.)*
+*(If the screen says **Context cost not measured yet**, click **Measure context cost** — that
+launches each server for real, about four seconds each. It should already be done from the dry
+run; measurements do not survive a relaunch.)*
 
 **One capability, one agent.** Find the Playwright row and click **Deactivate · Codex**.
 
@@ -313,7 +314,7 @@ status says *Configured*, never *Verified*. The Windows build is unsigned. See
 | Playwright launches nothing | `npx playwright install chromium`. |
 | Config conflict during install | Expected behaviour — the entry already exists with different settings. Say so: AgentPack leaves it alone rather than overwriting. |
 | Rollback conflict after a dormancy toggle | Reactivate that capability in **Manage**, then retry rollback. |
-| Manage screen shows no measurements | Click **measure now**; allow ~20 seconds. |
+| Manage shows "Context cost not measured yet", or `—` in place of numbers | Click **Measure context cost**; allow ~20 seconds. Nothing is broken — cost is measured once per capability, and measurements do not survive a relaunch. |
 | Anything unrecoverable | Close the window, relaunch with `--demo` — a brand new sandbox. Budget 30 seconds to re-measure. |
 
 ---

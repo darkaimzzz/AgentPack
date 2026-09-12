@@ -138,6 +138,10 @@ export default function Dashboard() {
   const { summary } = view
   const pct = summary.allTokens > 0 ? Math.round((1 - summary.activeTokens / summary.allTokens) * 100) : 0
   const unmeasured = view.rows.filter((r) => r.manageable && (r.anyActive || r.anyDormant) && r.cost?.source !== 'measured').length
+  // Nothing measured yet reads as "0 / 0", which looks like an empty machine
+  // rather than an unmeasured one. Say which it is.
+  const nothingMeasured = summary.allTools === 0 && unmeasured > 0
+  const dash = (n: number) => (nothingMeasured ? '—' : n.toLocaleString())
 
   return (
     <div className="wrap">
@@ -152,21 +156,35 @@ export default function Dashboard() {
         </div>
       )}
 
+      {nothingMeasured && (
+        <div className="banner">
+          <div className="h">Context cost not measured yet</div>
+          <div className="meta">
+            {unmeasured} installed capabilit{unmeasured === 1 ? 'y has' : 'ies have'} no measurement.
+            AgentPack launches each server and reads its real tool list — about four seconds each,
+            once per capability.
+          </div>
+          <button className="btn" onClick={measure} disabled={measuring || busyId !== null}>
+            {measuring ? 'Measuring…' : 'Measure context cost'}
+          </button>
+        </div>
+      )}
+
       {/* --- summary ------------------------------------------------------- */}
       <div className="card clm-summary">
         <div className="stat">
           <div className="k">Active tools</div>
-          <div className="v">{summary.activeTools}<span className="of"> / {summary.allTools}</span></div>
+          <div className="v">{dash(summary.activeTools)}<span className="of"> / {dash(summary.allTools)}</span></div>
         </div>
         <div className="stat">
           <div className="k">Estimated context</div>
           <div className="v">
-            {summary.activeTokens.toLocaleString()}<span className="of"> / {summary.allTokens.toLocaleString()}</span>
+            {dash(summary.activeTokens)}<span className="of"> / {dash(summary.allTokens)}</span>
           </div>
         </div>
         <div className="stat">
           <div className="k">Estimated reduction</div>
-          <div className="v accent">{pct}%</div>
+          <div className="v accent">{nothingMeasured ? '—' : `${pct}%`}</div>
         </div>
         <div className="bar-track" aria-hidden>
           <div className="bar-fill" style={{ width: `${summary.allTokens ? (summary.activeTokens / summary.allTokens) * 100 : 0}%` }} />
