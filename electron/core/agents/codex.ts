@@ -41,6 +41,20 @@ const tableKey = (id: string) => (/^[A-Za-z0-9_-]+$/.test(id) ? id : tomlString(
 const read = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8') : '')
 
 /**
+ * A TOML parse error, with the source context stripped.
+ *
+ * smol-toml appends the offending lines to its message to help a human locate
+ * the problem. Those lines can be anything already in the user's config —
+ * including credentials from entries we did not write and therefore cannot
+ * redact, since redaction only knows the secrets supplied for the current run.
+ * Keep the diagnostic, drop the excerpt.
+ */
+const parseDiagnostic = (e: unknown): string => {
+  const first = String((e as Error)?.message ?? e).split('\n')[0].trim()
+  return first || 'could not be parsed as TOML'
+}
+
+/**
  * Write back a line-edited document, keeping the file's trailing-newline
  * convention. Splicing out a table at the END of the file otherwise swallows
  * the final newline, which is enough on its own to stop a rollback being
@@ -68,10 +82,11 @@ const servers = (p: string): Servers => {
  * Find the line range of a `[mcp_servers.<id>]` table and its sub-tables,
  * so removal touches nothing else in the file.
  */
-function tableRange(text: string, id: string): [number, number] | null {
+function tableRange(text: string, id: string, section = 'mcp_servers'): [number, number] | null {
   const lines = text.split('\n')
-  const head = new RegExp(`^\\s*\\[mcp_servers\\.(${escapeRe(id)}|${escapeRe(tomlString(id))})\\]`)
-  const sub = new RegExp(`^\\s*\\[mcp_servers\\.(${escapeRe(id)}|${escapeRe(tomlString(id))})\\.`)
+  const key = `(${escapeRe(id)}|${escapeRe(tomlString(id))}|${escapeRe(`"${id}"`)})`
+  const head = new RegExp(`^\\s*\\[${escapeRe(section)}\\.${key}\\]`)
+  const sub = new RegExp(`^\\s*\\[${escapeRe(section)}\\.${key}\\.`)
   const start = lines.findIndex((l) => head.test(l))
   if (start === -1) return null
   let end = start + 1
@@ -80,6 +95,10 @@ function tableRange(text: string, id: string): [number, number] | null {
     if (/^\s*\[/.test(l) && !sub.test(l)) break
     end++
   }
+  // Give back trailing blank lines and comments. They sit between this table
+  // and whatever follows, so they are as likely to be the user's as ours, and
+  // removing a table must never remove text that merely comes after it.
+  while (end > start + 1 && /^\s*(#|$)/.test(lines[end - 1])) end--
   // Absorb one leading blank line so removal does not leave a gap behind.
   const from = start > 0 && lines[start - 1].trim() === '' ? start - 1 : start
   return [from, end]
@@ -126,7 +145,11 @@ export const codex: AgentAdapter = {
     if (index >= 0) lines[index] = lines[index].replace(/^(\s*enabled\s*=\s*)(true|false)/, '$1' + enabled)
     else lines.splice(start + 1, 0, 'enabled = ' + enabled)
     const next = lines.join('\n')
-    parseToml(next)
+    try {
+      parseToml(next)
+    } catch (e) {
+      throw new Error(`refusing to write invalid TOML for ${cap.id}: ${parseDiagnostic(e)}`)
+    }
     atomicWrite(p, next)
   },
 
@@ -154,8 +177,17 @@ export const codex: AgentAdapter = {
     const { marketplace, repo, name } = cap.plugin!
     const lines: string[] = []
     // Register the marketplace only if it is not already known — re-declaring
-    // an existing TOML table is a parse error.
-    const known = new RegExp(`^\\s*\\[marketplaces\\.${escapeRe(marketplace)}\\]`, 'm').test(prev)
+    // an existing TOML table is a parse error. Ask the parser rather than
+    // matching a bare header: [marketplaces."x"] and [marketplaces.'x'] are
+    // equally legal, and a header regex silently misses both, producing a
+    // duplicate table that the write then has to refuse.
+    let known = false
+    try {
+      const doc = parseToml(prev || '') as { marketplaces?: Record<string, unknown> }
+      known = Boolean(doc.marketplaces && Object.hasOwn(doc.marketplaces, marketplace))
+    } catch {
+      // Unparseable already; the validity check below refuses the write anyway.
+    }
     if (!known) {
       lines.push(
         '',
@@ -170,7 +202,7 @@ export const codex: AgentAdapter = {
     try {
       parseToml(next)
     } catch (e) {
-      throw new Error(`refusing to write invalid TOML for plugin ${cap.id}: ${(e as Error).message}`)
+      throw new Error(`refusing to write invalid TOML for plugin ${cap.id}: ${parseDiagnostic(e)}`)
     }
     atomicWrite(p, next)
   },
@@ -216,7 +248,7 @@ export const codex: AgentAdapter = {
     try {
       parseToml(next)
     } catch (e) {
-      throw new Error(`refusing to write invalid TOML for ${cap.id}: ${(e as Error).message}`)
+      throw new Error(`refusing to write invalid TOML for ${cap.id}: ${parseDiagnostic(e)}`)
     }
     atomicWrite(p, next)
   },
@@ -243,7 +275,26 @@ export const codex: AgentAdapter = {
       parseToml(raw)
       return { ok: true }
     } catch (e) {
-      return { ok: false, error: (e as Error).message.split('\n')[0] }
+      return { ok: false, error: parseDiagnostic(e) }
     }
   },
+}
+
+/**
+ * Remove `[section.key]` and its sub-tables from a TOML document by splicing
+ * lines, leaving every other line — comments included — exactly as it was.
+ *
+ * Rollback uses this instead of re-serialising the parsed document: a
+ * round-trip through the parser is correct about values and destructive about
+ * everything else a person may have written in the file.
+ *
+ * Returns null when the table is not present.
+ */
+export function removeTomlTable(text: string, section: string, key: string): string | null {
+  const range = tableRange(text, key, section)
+  if (!range) return null
+  const lines = text.split('\n')
+  lines.splice(range[0], range[1] - range[0])
+  const out = lines.join('\n')
+  return text.endsWith('\n') && !out.endsWith('\n') ? `${out}\n` : out
 }

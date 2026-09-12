@@ -76,7 +76,10 @@ export function registerHandlers(win: BrowserWindow) {
     stopWatch()
     watcher = startWatching(dir, event => {
       if (!win.isDestroyed()) win.webContents.send('clm:trigger', event)
-    }, { onError: error => { watchError = error; watcher = null; notifyWatch() } })
+      // Stop through the handle rather than dropping it: nulling the reference
+      // leaves the underlying filesystem watcher running with nothing able to
+      // close it, so Stop reports success while triggers keep firing.
+    }, { onError: error => { watcher?.stop(); watcher = null; watchError = error; notifyWatch() } })
     return { watching: watcher.watching }
   })
   handle('clm:setState', (req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }) => mutate(() => {

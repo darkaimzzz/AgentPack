@@ -205,7 +205,22 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
     try { prepareRestore(token)?.apply() } catch (rollbackError) {
       return fail(capabilityId, agent, from, from, `Change failed; rollback needs attention: ${(rollbackError as Error).message}`, opts, token.backupPath ?? undefined)
     }
-    if (!native) dormant.drop(capabilityId, agent)
+    // Drop the stash ONLY once the live entry is demonstrably back. If the
+    // restore did not take, that stash is the only surviving copy of the
+    // entry and its credentials — discarding it here would turn a failed
+    // deactivation into real data loss.
+    if (!native) {
+      const restored = adapter.read(resolved) !== null
+      if (restored) dormant.drop(capabilityId, agent)
+      else {
+        return fail(
+          capabilityId, agent, from, from,
+          `${(e as Error).message}. The entry was not restored to the live config, so its saved copy has been kept — ` +
+          'reactivate it from Manage, or restore the backup by hand.',
+          opts, token.backupPath ?? undefined,
+        )
+      }
+    }
     return fail(capabilityId, agent, from, 'dormant', (e as Error).message, opts, token.backupPath ?? undefined)
   }
 }

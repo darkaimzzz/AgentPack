@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "dist": "electron-vite build && electron-builder --win",
     "e2e": "node electron/core/e2e.ts",
-    "test": "node --test electron/core/detection/project.test.ts electron/core/hardening.test.ts electron/core/installer/process.test.ts electron/core/clm-regression.test.ts",
+    "test": "node --test electron/core/detection/project.test.ts electron/core/hardening.test.ts electron/core/installer/process.test.ts electron/core/clm-regression.test.ts electron/core/review-v160.test.ts",
     "demo": "electron-vite build && electron out/main/main.js --demo",
     "test:ui": "node scripts/electron-e2e.mjs",
     "test:tools": "node scripts/tool-calls.mjs"

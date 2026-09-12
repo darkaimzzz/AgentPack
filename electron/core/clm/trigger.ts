@@ -109,7 +109,13 @@ export function startWatching(
   try {
     watcher = watch(projectDir, { recursive: true }, (event, filename) => {
       try { handle(event, filename) } catch {
+        // Close before reporting. A watcher that keeps firing after it has
+        // told the caller it failed will go on mutating agent configs behind
+        // a UI that says it stopped — and the caller may well have dropped
+        // its handle in response to the error.
         watchError = 'Automatic activation failed. Check agent configuration and the dormant store.'
+        watcher?.close()
+        watcher = null
         opts.onError?.(watchError)
       }
     })

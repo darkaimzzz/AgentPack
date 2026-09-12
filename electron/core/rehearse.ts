@@ -62,11 +62,16 @@ for (let i = 1; i <= RUNS; i++) {
   if (!candidates.length) problems.push('no credential-free capabilities were recommended')
 
   // A rehearsal must start from a clean baseline, or the idempotency guard
-  // correctly skips every write and proves nothing.
-  const dirty = candidates.filter((c) => agents.every((k) => adapters[k].read(c) !== null))
-  if (dirty.length === candidates.length && candidates.length) {
+  // correctly skips every write and proves nothing. Report partial dirtiness
+  // too: requiring every agent to be dirty let a capability that is already
+  // configured differently in one agent slip through, where it conflicts on
+  // that agent while installs elsewhere kept the aggregate checks green.
+  const dirty = candidates
+    .map((c) => ({ id: c.id, agents: agents.filter((k) => adapters[k].read(c) !== null) }))
+    .filter((d) => d.agents.length)
+  if (dirty.length) {
     problems.push(
-      `baseline is not clean — ${dirty.map((c) => c.id).join(', ')} already configured in every agent. ` +
+      `baseline is not clean — ${dirty.map((d) => `${d.id} in ${d.agents.join('/')}`).join(', ')} already configured. ` +
       'Roll your real configs back first: node electron/core/cli.ts rollback --all',
     )
   }
@@ -77,7 +82,12 @@ for (let i = 1; i <= RUNS; i++) {
   for (const c of report.capabilities) {
     if (!c.health.reachable) problems.push(`${c.capability.id} health failed: ${c.health.error}`)
     for (const r of c.results) {
-      if (r.status === 'failed') problems.push(`${c.capability.id}/${r.agent}: ${r.error}`)
+      // A conflict is an unfinished install, not a neutral outcome. Counting
+      // only 'failed' let one agent refuse the write while installs on the
+      // others carried the health and write-detection checks to a false pass.
+      if (r.status === 'failed' || r.status === 'conflict') {
+        problems.push(`${c.capability.id}/${r.agent}: ${r.status} — ${r.error}`)
+      }
     }
   }
 
