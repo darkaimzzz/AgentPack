@@ -1,0 +1,25 @@
+<!-- AgentPack app icon — large sizes (48px and up).
+     Regenerate build/icon.ico with:  node scripts/make-icon.mjs -->
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- case -->
+  <rect x="42" y="26" width="428" height="460" rx="58" fill="#cf2434" stroke="#1a1a1a" stroke-width="20"/>
+
+  <!-- lens -->
+  <circle cx="126" cy="116" r="50" fill="#f2efe9" stroke="#1a1a1a" stroke-width="14"/>
+  <circle cx="126" cy="116" r="33" fill="#29a8e0" stroke="#1a1a1a" stroke-width="8"/>
+  <circle cx="113" cy="103" r="11" fill="#bfe6fb"/>
+
+  <!-- three lamps -->
+  <circle cx="232" cy="98" r="18" fill="#e04b45" stroke="#1a1a1a" stroke-width="8"/>
+  <circle cx="286" cy="98" r="18" fill="#f0b429" stroke="#1a1a1a" stroke-width="8"/>
+  <circle cx="340" cy="98" r="18" fill="#4caf50" stroke="#1a1a1a" stroke-width="8"/>
+
+  <!-- screen -->
+  <rect x="94" y="182" width="324" height="204" rx="22" fill="#f2efe9" stroke="#1a1a1a" stroke-width="14"/>
+  <rect x="120" y="206" width="272" height="156" rx="8" fill="#12161a"/>
+
+  <!-- lower controls -->
+  <rect x="112" y="416" width="150" height="52" rx="14" fill="#4caf50" stroke="#1a1a1a" stroke-width="12"/>
+  <path d="M348 402 h34 v34 h34 v34 h-34 v34 h-34 v-34 h-34 v-34 h34 z"
+        fill="#3f3f3f" stroke="#1a1a1a" stroke-width="12" stroke-linejoin="round"/>
+</svg>

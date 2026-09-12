@@ -123,6 +123,8 @@ npm run dist
 
 `dist` creates a Windows portable executable. The current artifact is unsigned. Runtime dependency audit: `npm audit --omit=dev`.
 
+The app icon is drawn, like the rest of the interface. `build/icon.svg` is used for large sizes and `build/icon-small.svg` — simplified, since the lamps and D-pad turn to mush below 48px — for the 16 and 32px entries the Windows taskbar actually shows. Rebuild `build/icon.ico` from both with `node scripts/make-icon.mjs`.
+
 ## Code layout
 
 - `electron/core/agents`: native config adapters
