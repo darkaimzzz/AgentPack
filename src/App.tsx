@@ -119,6 +119,16 @@ export default function App() {
 
   const stepIndex = STEPS.findIndex(([s]) => s === step)
 
+  /**
+   * Window controls live in the main process. If that channel is missing — the
+   * usual cause is a renderer that hot-reloaded while an older main process
+   * kept running — say so, rather than leaving a button that does nothing.
+   */
+  const windowCmd = (name: 'minimizeWindow' | 'toggleMaximizeWindow' | 'closeWindow') => {
+    window.agentpack[name]().catch((e: Error) =>
+      setError(`Window controls are unavailable (${e.message}). Restart AgentPack — this happens when the app is left running across a code change.`))
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -146,9 +156,9 @@ export default function App() {
           </nav>
         )}
         <div className="wincontrols">
-          <button title="Minimise" aria-label="Minimise" onClick={() => window.agentpack.minimizeWindow()}>–</button>
-          <button title="Maximise" aria-label="Maximise" onClick={() => window.agentpack.toggleMaximizeWindow()}>□</button>
-          <button className="x" title="Close" aria-label="Close" onClick={() => window.agentpack.closeWindow()}>✕</button>
+          <button title="Minimise" aria-label="Minimise" onClick={() => windowCmd('minimizeWindow')}>–</button>
+          <button title="Maximise" aria-label="Maximise" onClick={() => windowCmd('toggleMaximizeWindow')}>□</button>
+          <button className="x" title="Close" aria-label="Close" onClick={() => windowCmd('closeWindow')}>✕</button>
         </div>
       </header>
 
