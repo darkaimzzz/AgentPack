@@ -1,0 +1,13 @@
+{
+  "id": "taste-skill",
+  "name": "Taste",
+  "type": "plugin",
+  "description": "Frontend design skills — brutalist, minimalist, soft, redesign and stitch — aimed at stopping the agent producing generic-looking UI.",
+  "source": "Leonxlnx — github Leonxlnx/taste-skill",
+  "plugin": {
+    "marketplace": "taste-skill",
+    "repo": "Leonxlnx/taste-skill",
+    "name": "taste-skill"
+  },
+  "supportedAgents": ["claude", "codex"]
+}

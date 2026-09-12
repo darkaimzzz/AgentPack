@@ -1,0 +1,13 @@
+{
+  "id": "caveman",
+  "name": "Caveman",
+  "type": "plugin",
+  "description": "Rewrites the agent's prose into terse caveman-speak. Its README reports a measured 65% cut in output tokens with technical content kept intact.",
+  "source": "JuliusBrussee — github JuliusBrussee/caveman",
+  "plugin": {
+    "marketplace": "caveman",
+    "repo": "JuliusBrussee/caveman",
+    "name": "caveman"
+  },
+  "supportedAgents": ["claude", "codex"]
+}

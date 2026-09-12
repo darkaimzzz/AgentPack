@@ -49,7 +49,7 @@ For the presentation itself — preparation, a five-minute script with exact cli
 ## What is included
 
 - Six MCP servers: Playwright, Filesystem, Sequential Thinking, Context7, GitHub, Supabase.
-- Four marketplace plugins: Superpowers, Claude Mem, Plannotator, Beads. Plugins are supported in Claude Code and Codex; OpenCode uses a different plugin system.
+- Seven marketplace plugins: Superpowers, Claude Mem, Plannotator, Beads, Caveman, Karpathy Skills, Taste. Plugins are supported in Claude Code and Codex; OpenCode uses a different plugin system.
 - Two packs: Local Developer and Full-Stack.
 - Nested project detection with evidence for each signal, including Next.js configs, Supabase SSR dependencies, Supabase config folders, and environment variable names.
 - Target selection, credential entry, compatibility checks, progress logs, conflict reporting, and rollback.
