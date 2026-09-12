@@ -7,7 +7,7 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Area | Score | Evidence / remaining gap |
 | --- | ---: | --- |
 | Project and agent detection | 15 / 15 | Nested dependencies, workspace patterns, config markers, environment names, generated-directory and symlink exclusions |
-| Registry, packs, compatibility and configuration | 20 / 20 | Six MCPs, four plugins, two packs, three config adapters, selected targets, idempotency and explicit conflicts |
+| Registry, packs, compatibility and configuration | 20 / 20 | Twelve MCPs (each probed for a real tool list), eighteen plugins, four packs, three config adapters, selected targets, idempotency and explicit conflicts |
 | Live validation | 16 / 20 | Real MCP discovery, three actual tool calls and rendered Electron E2E; authenticated GitHub/Supabase and actual client loading remain unverified |
 | State safety and recovery | 17 / 20 | Ownership-aware rollback, concurrent-edit rejection, credential filtering, lossless dormancy, atomic persistence; native dormancy may require reactivation before undo, broader crash/concurrency stress testing remains |
 | Product usability | 14 / 15 | Working wizard, pack/target choices, truthful health labels, error recovery, Manage and clean documentation; import/export and historical recovery are CLI-first |
@@ -33,27 +33,27 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | --- | --- |
 | TypeScript | Pass |
 | Focused regression scenarios | 29 pass: 10 installer, 9 CLM, 4 process, 6 detector scenarios (Node's runner reports 24 entries because detector scenarios use one file harness) |
-| Existing selfcheck suite | 74 pass |
+| Existing selfcheck suite | 75 pass |
 | Live engine acceptance | 14 / 14 pass, final rerun included |
 | Real Electron UI | 8 / 8 stages pass, repeated runs; no renderer errors |
 | Local Developer flow | Nine config entries installed; 39 tools discovered across three MCP servers |
 | Actual tools/call | 3 / 3 pass: Filesystem reads a sentinel file; Playwright opens about:blank and closes; Sequential Thinking returns a valid terminal step |
 | Runtime dependency audit | Zero known vulnerabilities reported by npm audit --omit=dev |
-| Portable build | Pass; Windows x64, 100,491,908 bytes, unsigned |
-| Packaged launch | Pass: portable launcher returned 0 for the 1.3.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
+| Portable build | Pass; Windows x64, 100,493,162 bytes, unsigned |
+| Packaged launch | Pass: portable launcher returned 0 for the 1.4.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
 
 Tests use synthetic temporary homes, rather than copying or altering the user's real agent configs. The UI test uses the actual renderer, preload and IPC; only the OS folder picker is replaced with a fixture selection. MCP checks launch real packages. Tests of credential failure use clearly fake fixture tokens.
 
 Evidence is in ignored `.qa/ui-results.json`, `.qa/ui-health.png`, `.qa/tool-call-results.json`, and `.qa/packaged-smoke.txt`. Reproduce with the commands in README.
 
-Artifact: `release/AgentPack-1.3.0-win-x64.exe`
+Artifact: `release/AgentPack-1.4.0-win-x64.exe`
 
-SHA-256: `43AB0831DD06536E31EEFF1BA9AFAEF24665AF260AB0CC39701D392D735C431A`
+SHA-256: `D80632B3CB22AA614296BD025DEC3F07FE07854A78BE36116BC43CFD34B3EC26`
 
 ## Next steps, in priority order
 
 1. **Before showcasing account integrations:** use dedicated demo GitHub/Supabase credentials and exercise a read-only account operation. Start a real session in each supported coding agent and verify it loads the generated config; separately verify plugin downloads and loading. Current health reports deliberately do not claim these checks passed.
-2. **Before broader distribution:** migrate the archived GitHub stdio entry to the [maintained official GitHub MCP server](https://github.com/github/github-mcp-server), add HTTP transport validation, sign the Windows artifact, and add installer crash/cross-process stress coverage. The [legacy implementation is archived](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/github).
+2. **Before broader distribution:** add HTTP transport validation, sign the Windows artifact, and add installer crash/cross-process stress coverage. The GitHub gap is now partly closed — the [maintained official server](https://github.com/github/github-mcp-server) is offered as a plugin for Claude Code and Codex, while the [archived stdio implementation](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/github) is retained only because OpenCode has no marketplace; replacing it there still needs HTTP transport or a Docker path.
 3. **Highest-value feature additions:** GUI install history with a change preview, manifest import/export from the wizard, per-capability access summaries, and per-agent measurements when configurations differ. These improve the current product more than adding a chat interface or another agent abstraction.
 
 For the current presentation, follow [DEMO.md](DEMO.md), use `--demo`, and select Local Developer. The executable still requires Node/npm on PATH; prewarm on the presentation machine before relying on venue networking.
