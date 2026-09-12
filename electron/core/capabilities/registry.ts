@@ -1,16 +1,34 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Capability, Pack } from '../types.ts'
 
 // Registry lives on disk as data, never hard-coded into components (CLAUDE.md §17).
 // Curated + allow-listed: no open marketplace (§21).
-const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'registry')
+//
+// Walk up looking for the registry rather than counting "../" levels: this file
+// runs both as source (electron/core/capabilities/) and bundled into out/main/,
+// which sit at different depths.
+function findRegistry(): string {
+  if (process.env.AGENTPACK_REGISTRY) return process.env.AGENTPACK_REGISTRY
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, 'registry')
+    if (existsSync(join(candidate, 'capabilities'))) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  throw new Error('could not locate the registry directory; set AGENTPACK_REGISTRY')
+}
+
+let rootCache: string | null = null
+const root = () => (rootCache ??= findRegistry())
 
 const loadDir = <T>(sub: string): T[] =>
-  readdirSync(join(root, sub))
+  readdirSync(join(root(), sub))
     .filter((f) => f.endsWith('.json'))
-    .map((f) => JSON.parse(readFileSync(join(root, sub, f), 'utf8')) as T)
+    .map((f) => JSON.parse(readFileSync(join(root(), sub, f), 'utf8')) as T)
 
 let capCache: Capability[] | null = null
 let packCache: Pack[] | null = null
