@@ -42,7 +42,7 @@ If Playwright reports a missing browser, run `npx playwright install chromium`.
 Confirm the build you will present from:
 
 ```powershell
-npm run build          # or use release\AgentPack-1.1.0-win-x64.exe
+npm run build          # or use release\AgentPack-1.2.0-win-x64.exe
 ```
 
 **Do not demo without `--demo`.** Without it, AgentPack reads and writes your real agent
@@ -60,7 +60,7 @@ Every launch creates a **fresh sandbox** in the temp directory: three empty agen
 and a nested Next.js + Supabase project. That freshness is the point — but it also means
 **measured context costs do not survive a relaunch**.
 
-So: do one full dry run, click **measure now** on the Manage screen, then roll back and
+So: do one full dry run, click **Measure context cost** on the Manage screen, then roll back and
 **leave the window open**. Measurement is cached for the life of that sandbox, so the live
 run will not spend twenty seconds probing servers in front of the judges. If you must
 relaunch, budget for re-measuring.
