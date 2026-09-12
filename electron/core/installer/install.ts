@@ -179,6 +179,11 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
         if (hashFile(configPath) !== expectedHash) throw new Error('Config changed during installation. This entry was left untouched; review the file and retry.')
         if (cap.type === 'plugin') adapter.writePlugin!(resolved)
         else adapter.write(resolved, env)
+        // Read the entry back before claiming it installed. Writing and reading
+        // can disagree about which part of a file is authoritative, and a health
+        // check proves the server runs, not that the saved config points at it.
+        const saved = cap.type === 'plugin' ? adapter.readPlugin?.(resolved) : adapter.read(resolved)
+        if (!saved) throw new Error(`wrote ${cap.name} to ${adapter.name} but could not read the entry back — the change did not take effect`)
         captureAfter(token,runId)
         ledger.amend(runId,{backups})
         onProgress({ kind: 'agent', agent: key, status: 'installed', detail: cap.name })

@@ -13,7 +13,11 @@ export type ToolDefinition = {
 
 /** An automatic activation rule. */
 export type CapabilityActivationTrigger = {
-  type: 'file_glob' | 'branch_glob'
+  /**
+   * Only file globs exist. A branch trigger was considered and not built, and
+   * leaving it in the union promised behaviour the engine does not have.
+   */
+  type: 'file_glob'
   pattern: string
 }
 
@@ -147,6 +151,13 @@ export type BackupToken = {
   postHash?: string | null
   /** Config snapshot immediately after our last write; kept with the backups. */
   afterPath?: string
+  /**
+   * True once this run has actually written to the file. It distinguishes
+   * "nothing to undo" from "we wrote but lost the post-image" — without it,
+   * rollback cannot tell an already-present capability apart from a change it
+   * can no longer attribute, and must guess wrong in one direction or other.
+   */
+  written?: boolean
 }
 
 // --- project detection ------------------------------------------------------

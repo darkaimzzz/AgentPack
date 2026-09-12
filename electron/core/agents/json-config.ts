@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { atomicWrite } from '../files.ts'
-import { parse as parseJsonc, applyEdits, modify, type ParseError } from 'jsonc-parser'
+import { parse as parseJsonc, parseTree, applyEdits, modify, type ParseError } from 'jsonc-parser'
 
 /** Strict JSON read. Used where the format really is plain JSON. */
 export function readJson<T = Record<string, unknown>>(path: string): T {
@@ -52,6 +52,18 @@ export function readJsonc<T = Record<string, unknown>>(path: string): T {
   const errors: ParseError[] = []
   const value = parseJsonc(raw, errors, { allowTrailingComma: true }) as T
   if (errors.length) throw new Error(`${path} could not be parsed as JSONC (${errors.length} error(s))`)
+  // A duplicated top-level key is legal JSON but ambiguous here, and the two
+  // libraries disagree about which one wins: the reader takes the last, while
+  // the surgical editor writes into the first. That combination reports a
+  // successful install whose entry is unreachable, so refuse it instead.
+  const tree = parseTree(raw, [], { allowTrailingComma: true })
+  if (tree?.type === 'object') {
+    const keys = (tree.children ?? []).map((c) => c.children?.[0]?.value as string)
+    const duplicate = keys.find((k, i) => k !== undefined && keys.indexOf(k) !== i)
+    if (duplicate) {
+      throw new Error(`${path} defines "${duplicate}" more than once — remove the duplicate so it is clear which applies`)
+    }
+  }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(path + ' must contain a config object')
   const doc = value as Record<string, unknown>
   if (doc.mcp !== undefined && (!doc.mcp || typeof doc.mcp !== 'object' || Array.isArray(doc.mcp))) throw new Error(path + ' has an invalid MCP section')

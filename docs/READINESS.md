@@ -1,4 +1,4 @@
-# Hackathon readiness — 12 September 2026
+# Hackathon readiness — 12 September 2026 (v2.0.0)
 
 ## Assessment: 92 / 100
 
@@ -32,7 +32,7 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Check | Result |
 | --- | --- |
 | TypeScript | Pass |
-| Focused regression scenarios | 29 pass: 10 installer, 9 CLM, 4 process, 6 detector scenarios (Node's runner reports 24 entries because detector scenarios use one file harness) |
+| Focused regression scenarios | 31 runner entries pass, 0 fail: installer, CLM, process, detector and the v1.6.0 review regressions (detector scenarios are grouped inside one entry) |
 | Existing selfcheck suite | 75 pass |
 | Live engine acceptance | 14 / 14 pass, final rerun included |
 | Real Electron UI | 8 / 8 stages pass, repeated runs; no renderer errors |
@@ -49,6 +49,10 @@ Evidence is in ignored `.qa/ui-results.json`, `.qa/ui-health.png`, `.qa/tool-cal
 Artifact: `release/AgentPack-1.6.0-win-x64.exe`
 
 SHA-256: `91770653FA618EAE59FF39EE732952D60BB5D4A24D02196A65080739CF6BA78B`
+
+## Independent review
+
+An external agent reviewed v1.6.0 with its own fault-injection fixtures and filed seven defects, including three P1s in rollback, credential handling and watcher shutdown. All seven are fixed, with regression tests for each that can be proven headlessly. See [INDEPENDENT-REVIEW.md](INDEPENDENT-REVIEW.md).
 
 ## Next steps, in priority order
 

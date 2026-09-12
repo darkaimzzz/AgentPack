@@ -24,7 +24,7 @@ export function profiles(): CapabilityProfile[] {
     .sort((a, b) => a.name.localeCompare(b.name)))
 }
 
-export function getProfile(id: string): CapabilityProfile {
+function getProfile(id: string): CapabilityProfile {
   const p = profiles().find((x) => x.id === id)
   if (!p) throw new Error(`unknown profile: ${id}`)
   return p
