@@ -27,13 +27,13 @@ export function backup(agent: AgentKey, configPath: string, stamp: string): Back
 }
 
 /** Whole-file restore. Only safe when the file has not changed since we wrote it. */
-export function restoreFile(token: BackupToken): void {
+function restoreFile(token: BackupToken): void {
   if (!token.existed || !token.backupPath) return
   copyFileSync(token.backupPath, token.configPath)
 }
 
 /** Delete a config file that AgentPack created. */
-export function deleteFile(path: string): void {
+function deleteFile(path: string): void {
   rmSync(path, { force: true })
 }
 

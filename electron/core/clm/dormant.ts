@@ -32,7 +32,7 @@ export type DormantRecord = {
 
 type Store = { version: 1; entries: DormantRecord[] }
 
-export const dormantPath = () => join(stateDir(), 'dormant.json')
+const dormantPath = () => join(stateDir(), 'dormant.json')
 
 const read = (): Store => {
   const p = dormantPath()

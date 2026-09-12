@@ -44,7 +44,7 @@ The portable build is `release/AgentPack-1.6.0-win-x64.exe`:
 
 Without `--demo`, AgentPack reads your real agent configuration. Use `npm run dev` for development or `npm start` after building.
 
-For the presentation itself — preparation, a five-minute script with exact clicks, judge questions and a failure playbook — see **[the demo workflow](docs/DEMO.md)**. The scored engineering assessment and known gaps are in **[READINESS.md](docs/READINESS.md)**.
+For the presentation itself — preparation, a five-minute script with exact clicks, judge questions and a failure playbook — see **[the demo workflow](docs/DEMO.md)**. The scored engineering assessment and known gaps are in **[READINESS.md](docs/READINESS.md)**, and an external agent's fault-injection review of v1.6.0, with all seven of its findings fixed, is in **[INDEPENDENT-REVIEW.md](docs/INDEPENDENT-REVIEW.md)**.
 
 ## What is included
 

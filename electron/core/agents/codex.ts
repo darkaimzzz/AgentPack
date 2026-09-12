@@ -21,7 +21,7 @@ import type { Capability } from '../types.ts'
  * `C:\Projects\O'Brien App`, would terminate it early and emit invalid TOML.
  * Fall back to a basic string in that case.
  */
-export const tomlString = (s: string): string => {
+const tomlString = (s: string): string => {
   if (!/['\x00-\x1f\x7f]/.test(s)) return `'${s}'`
   const escaped = s
     .replace(/\\/g, '\\\\')
@@ -52,18 +52,6 @@ const read = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8') : '')
 const parseDiagnostic = (e: unknown): string => {
   const first = String((e as Error)?.message ?? e).split('\n')[0].trim()
   return first || 'could not be parsed as TOML'
-}
-
-/**
- * Write back a line-edited document, keeping the file's trailing-newline
- * convention. Splicing out a table at the END of the file otherwise swallows
- * the final newline, which is enough on its own to stop a rollback being
- * byte-identical.
- */
-const writeLines = (p: string, lines: string[], original: string) => {
-  const out = lines.join('\n')
-  const endedWithNewline = original.endsWith('\n')
-  atomicWrite(p, endedWithNewline && !out.endsWith('\n') ? `${out}\n` : out)
 }
 
 type Servers = Record<string, { command?: string; args?: string[]; env?: Record<string, string>; enabled?: boolean }>
@@ -212,16 +200,9 @@ export const codex: AgentAdapter = {
     const text = read(p)
     if (!text) return
     const id = `${cap.plugin!.name}@${cap.plugin!.marketplace}`
-    const lines = text.split('\n')
-    const head = new RegExp(`^\\s*\\[plugins\\.${escapeRe(tomlString(id))}\\]`)
-    const start = lines.findIndex((l) => head.test(l))
-    if (start === -1) return
-    let end = start + 1
-    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++
-    const from = start > 0 && lines[start - 1].trim() === '' ? start - 1 : start
-    lines.splice(from, end - from)
     // Marketplace left registered on purpose: other plugins may depend on it.
-    writeLines(p, lines, text)
+    const next = removeTomlTable(text, 'plugins', id)
+    if (next !== null) atomicWrite(p, next)
   },
 
   write(cap: Capability, env: Record<string, string>) {
@@ -257,11 +238,8 @@ export const codex: AgentAdapter = {
     const p = this.configPath()
     const text = read(p)
     if (!text) return
-    const range = tableRange(text, cap.id)
-    if (!range) return
-    const lines = text.split('\n')
-    lines.splice(range[0], range[1] - range[0])
-    writeLines(p, lines, text)
+    const next = removeTomlTable(text, 'mcp_servers', cap.id)
+    if (next !== null) atomicWrite(p, next)
   },
 
   isEmpty() {

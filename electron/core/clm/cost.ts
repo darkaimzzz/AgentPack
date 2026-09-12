@@ -36,7 +36,7 @@ export function estimateCost(tools: ToolDefinition[]): CapabilityContextCost {
 }
 
 /** A capability we cannot measure from outside the agent. */
-export function unavailableCost(note: string): CapabilityContextCost {
+function unavailableCost(note: string): CapabilityContextCost {
   return {
     toolCount: 0,
     serializedChars: 0,

@@ -13,7 +13,11 @@ export type ToolDefinition = {
 
 /** An automatic activation rule. */
 export type CapabilityActivationTrigger = {
-  type: 'file_glob' | 'branch_glob'
+  /**
+   * Only file globs exist. A branch trigger was considered and not built, and
+   * leaving it in the union promised behaviour the engine does not have.
+   */
+  type: 'file_glob'
   pattern: string
 }
 

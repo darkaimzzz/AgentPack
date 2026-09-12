@@ -36,7 +36,7 @@ export type MutationLogEntry = {
   error?: string
 }
 
-export const logPath = () => join(stateDir(), 'mutations.json')
+const logPath = () => join(stateDir(), 'mutations.json')
 
 export function log(): MutationLogEntry[] {
   if (!existsSync(logPath())) return []
