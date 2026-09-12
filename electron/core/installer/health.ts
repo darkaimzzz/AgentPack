@@ -44,7 +44,18 @@ export async function probe(opts: {
   return new Promise((resolve) => {
     const child = spawn(file, spawnArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...env },
+      env: {
+        // Use the npx cache when it already has the pinned version. Every
+        // capability names an exact version, so a registry round-trip on each
+        // health check buys nothing — and when the registry is unreachable or
+        // its certificate will not validate, npm retries for over a minute
+        // before falling back to that same cache. The network is still used
+        // when a package is genuinely missing; this only skips revalidating
+        // what we already have.
+        npm_config_prefer_offline: 'true',
+        ...process.env,
+        ...env,
+      },
       shell,
       windowsHide: true,
     })

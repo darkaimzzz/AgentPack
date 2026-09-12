@@ -39,16 +39,17 @@ The credential-free demonstration route is ready: a nested Next.js/Supabase proj
 | Local Developer flow | Nine config entries installed; 39 tools discovered across three MCP servers |
 | Actual tools/call | 3 / 3 pass: Filesystem reads a sentinel file; Playwright opens about:blank and closes; Sequential Thinking returns a valid terminal step |
 | Runtime dependency audit | Zero known vulnerabilities reported by npm audit --omit=dev |
-| Portable build | Pass; Windows x64, 100,772,588 bytes, unsigned; taskbar icon verified by extracting the embedded 32x32 resource from the executable |
-| Packaged launch | Pass: portable launcher returned 0 for the 1.6.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
+| Server launch latency | ~3s per MCP server. Health checks ask npm to prefer its cache for the pinned version, so an unreachable or untrusted registry no longer adds ~70s of retries per launch before falling back to that same cache |
+| Portable build | Pass; Windows x64, 100,776,716 bytes, unsigned; taskbar icon verified by extracting the embedded 32x32 resource from the executable |
+| Packaged launch | Pass: portable launcher returned 0 for the 2.0.0 artifact; packaged app reported ok=true, all three agents, working preload/registry/Manage, no console errors |
 
 Tests use synthetic temporary homes, rather than copying or altering the user's real agent configs. The UI test uses the actual renderer, preload and IPC; only the OS folder picker is replaced with a fixture selection. MCP checks launch real packages. Tests of credential failure use clearly fake fixture tokens.
 
 Evidence is in ignored `.qa/ui-results.json`, `.qa/ui-health.png`, `.qa/tool-call-results.json`, and `.qa/packaged-smoke.txt`. Reproduce with the commands in README.
 
-Artifact: `release/AgentPack-1.6.0-win-x64.exe`
+Artifact: `release/AgentPack-2.0.0-win-x64.exe`
 
-SHA-256: `91770653FA618EAE59FF39EE732952D60BB5D4A24D02196A65080739CF6BA78B`
+SHA-256: `0532907D8ACE87EB963E615F691AFCEEB4EC020ADBCA2A1772D68ACCEE0B85D6`
 
 ## Independent review
 

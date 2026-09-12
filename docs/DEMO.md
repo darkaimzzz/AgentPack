@@ -42,7 +42,7 @@ If Playwright reports a missing browser, run `npx playwright install chromium`.
 Confirm the build you will present from:
 
 ```powershell
-npm run build          # or use release\AgentPack-1.6.0-win-x64.exe
+npm run build          # or use release\AgentPack-2.0.0-win-x64.exe
 ```
 
 **Do not demo without `--demo`.** Without it, AgentPack reads and writes your real agent
@@ -316,6 +316,7 @@ status says *Configured*, never *Verified*. The Windows build is unsigned. See
 | --- | --- |
 | "Node.js and npm were not found on PATH" | Install Node 22.17+, then **restart AgentPack** so it inherits the new PATH. |
 | Server download or startup times out | Rerun `prewarm` on a working connection. Read the error out loud; never describe a failed server as installed. |
+| Every server takes over a minute to start | The npm registry is unreachable or its certificate will not validate, and npm retries for ~70s before using its cache. AgentPack asks npm to prefer the cache for pinned versions, so this should not happen — but if it does, check `npm ping` and the machine clock. A clock set far ahead makes valid certificates read as expired. |
 | Playwright launches nothing | `npx playwright install chromium`. |
 | Config conflict during install | Expected behaviour — the entry already exists with different settings. Say so: AgentPack leaves it alone rather than overwriting. |
 | Rollback conflict after a dormancy toggle | Reactivate that capability in **Manage**, then retry rollback. |

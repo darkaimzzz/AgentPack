@@ -1,6 +1,6 @@
 {
   "name": "agentpack",
-  "version": "1.6.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Cross-agent package manager for MCP servers and plugins",
