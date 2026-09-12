@@ -47,6 +47,48 @@ export const RULES: Rule[] = [
       'django', 'fastapi', 'flask', 'prisma', 'drizzle', 'tailwind'],
     because: 'Version-accurate docs for the libraries in this stack — {evidence}.',
   },
+  {
+    capabilityId: 'git',
+    anyOf: ['git'],
+    because: 'Local repository operations — status, diffs and history — {evidence}.',
+  },
+  {
+    // One server speaks Postgres, MySQL, MariaDB, SQLite and SQL Server, so a
+    // single rule covers every SQL signal the detector knows about.
+    capabilityId: 'dbhub',
+    anyOf: ['postgres', 'mysql', 'sqlite', 'prisma', 'drizzle'],
+    because: 'A SQL database is part of this stack — {evidence}.',
+  },
+  {
+    capabilityId: 'mongodb',
+    anyOf: ['mongodb'],
+    because: 'MongoDB is part of this stack — {evidence}.',
+  },
+  {
+    capabilityId: 'redis',
+    anyOf: ['redis'],
+    because: 'Redis is part of this stack — {evidence}.',
+  },
+  {
+    capabilityId: 'prisma',
+    anyOf: ['prisma'],
+    because: 'Prisma schema and migration tooling — {evidence}.',
+  },
+  {
+    capabilityId: 'expo',
+    anyOf: ['react-native'],
+    because: 'A React Native app was detected — {evidence}.',
+  },
+  {
+    capabilityId: 'netlify',
+    anyOf: ['netlify'],
+    because: 'This project deploys to Netlify — {evidence}.',
+  },
+  {
+    capabilityId: 'chrome-devtools',
+    anyOf: [...FRONTEND_SIGNALS],
+    because: 'Inspect the running page — performance, console and network — {evidence}.',
+  },
 ]
 
 

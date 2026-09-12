@@ -44,6 +44,17 @@ test('pack capability ids all resolve', () => {
   for (const p of packs()) for (const id of p.capabilities) getCapability(id)
 })
 
+// recommend() skips a rule whose capability is missing, which is right at
+// runtime and useless as feedback: a typo would just mean the rule never fires
+// and nothing would say so.
+test('every recommendation rule names a capability that exists', () => {
+  const known = new Set(capabilities().map((c) => c.id))
+  for (const rule of RULES) {
+    assert.ok(known.has(rule.capabilityId), `rule points at unknown capability: ${rule.capabilityId}`)
+    assert.ok(rule.anyOf.length, `rule ${rule.capabilityId} matches no signals`)
+  }
+})
+
 test('${projectDir} is substituted in args', () => {
   const args = resolveArgs(getCapability('filesystem'), { projectDir: 'C:\\demo' })
   assert.ok(args.includes('C:\\demo'), 'projectDir placeholder not substituted')
@@ -98,7 +109,11 @@ test('detects a Next.js + Supabase project and explains why', () => {
 
   const recs = recommend(scan)
   const recIds = recs.map((r) => r.capability.id)
-  assert.deepEqual(recIds.sort(), ['context7', 'filesystem', 'github', 'playwright', 'supabase'])
+  // Exact set, not a subset: a rule that fires on the wrong signal is as much a
+  // bug as one that never fires, and only an equality check catches it.
+  assert.deepEqual(recIds.sort(), [
+    'chrome-devtools', 'context7', 'filesystem', 'git', 'github', 'playwright', 'supabase',
+  ])
   for (const r of recs) {
     assert.ok(!r.reason.includes('{evidence}'), 'reason template not filled')
     assert.ok(r.matched.length, 'recommendation carries no matching signal')

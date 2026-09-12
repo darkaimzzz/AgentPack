@@ -1,0 +1,16 @@
+{
+  "id": "figma",
+  "name": "Figma",
+  "type": "plugin",
+  "description": "Read Figma design files, component information and design tokens, and translate designs into code.",
+  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "figma"
+  },
+  "supportedAgents": [
+    "claude",
+    "codex"
+  ]
+}

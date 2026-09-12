@@ -1,0 +1,6 @@
+{
+  "id": "data-backend",
+  "name": "Data & Backend",
+  "description": "Query your databases and keep library docs accurate. Needs a connection string for each database.",
+  "capabilities": ["dbhub", "mongodb", "filesystem", "context7"]
+}
