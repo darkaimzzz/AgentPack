@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Dashboard from './clm/Dashboard.tsx'
+import Boot, { shouldSkipBoot } from './boot/Boot.tsx'
 import type {
   AgentKey, Analysis, Capability, DetectedAgent, InstallReport, ProgressEvent, Pack,
 } from './types.ts'
@@ -25,6 +26,9 @@ const BACK: Partial<Record<Step, Step>> = {
 export default function App() {
   // Two top-level modes. Install is the wizard; Manage is the Capability Load
   // Manager, which is a dashboard and does not belong in a step flow.
+  // The intro overlays the app; it never wraps it. Detection and the registry
+  // load while it plays, so it costs no startup time.
+  const [booting, setBooting] = useState(() => !shouldSkipBoot())
   const [mode, setMode] = useState<'install' | 'manage'>('install')
   const [step, setStep] = useState<Step>('detect')
   const [agents, setAgents] = useState<DetectedAgent[]>([])
@@ -219,6 +223,8 @@ export default function App() {
           }
         }}
       />}
+
+      {booting && <Boot onDone={() => setBooting(false)} />}
     </div>
   )
 }

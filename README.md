@@ -56,6 +56,7 @@ For the presentation itself — preparation, a five-minute script with exact cli
 - Capability management: activate/deactivate, profiles, schema cost estimates, and file-pattern activation.
 - Secret-free pack export/import through the CLI.
 - A frameless window with no OS menu bar: the app draws its own title bar and controls.
+- A startup sequence that opens the device and lands its logo in the header. Drawn entirely in SVG and CSS — it ships no image or audio assets. Any click or keypress skips it; it respects `prefers-reduced-motion`, and `--demo` plays it regardless so a demo machine with animation effects switched off still shows it. Set `AGENTPACK_BOOT=1` to force it on, `AGENTPACK_NO_BOOT=1` to force it off.
 
 | Agent | MCP configuration | Dormancy |
 | --- | --- | --- |
