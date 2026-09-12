@@ -1,0 +1,16 @@
+{
+  "id": "vercel",
+  "name": "Vercel",
+  "type": "plugin",
+  "description": "Manage Vercel deployments, check build status, read logs and configure domains.",
+  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "vercel"
+  },
+  "supportedAgents": [
+    "claude",
+    "codex"
+  ]
+}

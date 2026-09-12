@@ -1,0 +1,19 @@
+{
+  "id": "firecrawl",
+  "name": "Firecrawl",
+  "type": "mcp",
+  "description": "Scrape, crawl and search the web, returning clean markdown rather than raw HTML.",
+  "source": "Firecrawl — npm firecrawl-mcp",
+  "install": {
+    "command": "npx",
+    "args": ["-y", "firecrawl-mcp@3.24.0"]
+  },
+  "secrets": [
+    {
+      "key": "FIRECRAWL_API_KEY",
+      "label": "Firecrawl API key",
+      "help": "created at firecrawl.dev under API Keys"
+    }
+  ],
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

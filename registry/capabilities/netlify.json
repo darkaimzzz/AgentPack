@@ -1,0 +1,16 @@
+{
+  "id": "netlify",
+  "name": "Netlify",
+  "type": "plugin",
+  "description": "Netlify platform skills: functions, edge functions, blobs, forms, image CDN and caching.",
+  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "netlify-skills"
+  },
+  "supportedAgents": [
+    "claude",
+    "codex"
+  ]
+}

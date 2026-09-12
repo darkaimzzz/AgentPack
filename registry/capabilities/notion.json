@@ -1,0 +1,16 @@
+{
+  "id": "notion",
+  "name": "Notion",
+  "type": "plugin",
+  "description": "Search Notion pages, create and update documents, and read your team knowledge base.",
+  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "notion"
+  },
+  "supportedAgents": [
+    "claude",
+    "codex"
+  ]
+}

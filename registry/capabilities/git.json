@@ -1,0 +1,12 @@
+{
+  "id": "git",
+  "name": "Git",
+  "type": "mcp",
+  "description": "Read and write the local repository: status, diffs, log, branches, staging and commits.",
+  "source": "cyanheads — npm @cyanheads/git-mcp-server",
+  "install": {
+    "command": "npx",
+    "args": ["-y", "@cyanheads/git-mcp-server@2.15.3"]
+  },
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "github-official",
+  "name": "GitHub (official)",
+  "type": "plugin",
+  "description": "Official GitHub MCP server: issues, pull requests, code review and repository search, authenticated inside the agent.",
+  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "github"
+  },
+  "supportedAgents": [
+    "claude",
+    "codex"
+  ]
+}

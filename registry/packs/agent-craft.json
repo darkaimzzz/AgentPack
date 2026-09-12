@@ -1,0 +1,6 @@
+{
+  "id": "agent-craft",
+  "name": "Agent Craft",
+  "description": "Skills that change how the agent works rather than what it can reach. No API keys.",
+  "capabilities": ["superpowers", "karpathy-skills", "taste-skill", "plannotator"]
+}

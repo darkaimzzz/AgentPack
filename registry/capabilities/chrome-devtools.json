@@ -1,0 +1,15 @@
+{
+  "id": "chrome-devtools",
+  "name": "Chrome DevTools",
+  "type": "mcp",
+  "description": "Inspect a live Chrome tab: record performance traces, read the console and network, and evaluate scripts on the page.",
+  "source": "Google — npm chrome-devtools-mcp",
+  "install": {
+    "command": "npx",
+    "args": ["-y", "chrome-devtools-mcp@1.9.0"]
+  },
+  "requires": {
+    "note": "Drives a real Chrome install; the browser is launched on first use."
+  },
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

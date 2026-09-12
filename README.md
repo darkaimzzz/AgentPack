@@ -48,9 +48,9 @@ For the presentation itself — preparation, a five-minute script with exact cli
 
 ## What is included
 
-- Six MCP servers: Playwright, Filesystem, Sequential Thinking, Context7, GitHub, Supabase.
-- Seven marketplace plugins: Superpowers, Claude Mem, Plannotator, Beads, Caveman, Karpathy Skills, Taste. Plugins are supported in Claude Code and Codex; OpenCode uses a different plugin system.
-- Two packs: Local Developer and Full-Stack.
+- **Twelve MCP servers:** Playwright, Chrome DevTools, Filesystem, Git, Memory, Sequential Thinking, Context7, SQL Database (Postgres/MySQL/MariaDB/SQLite/SQL Server), MongoDB, Supabase, GitHub, Firecrawl. Every one has been launched and made to answer `tools/list` before being listed.
+- **Eighteen marketplace plugins:** Superpowers, Claude Mem, Plannotator, Beads, Caveman, Karpathy Skills, Taste, plus GitHub, Vercel, Netlify, Sentry, Linear, Notion, Expo, Prisma, Redis, Semgrep and Figma from Anthropic's official marketplace. Plugins are supported in Claude Code and Codex; OpenCode uses a different plugin system.
+- **Four packs:** Local Developer, Agent Craft (both credential-free), Full-Stack and Data & Backend.
 - Nested project detection with evidence for each signal, including Next.js configs, Supabase SSR dependencies, Supabase config folders, and environment variable names.
 - Target selection, credential entry, compatibility checks, progress logs, conflict reporting, and rollback.
 - Capability management: activate/deactivate, profiles, schema cost estimates, and file-pattern activation.
@@ -101,7 +101,9 @@ npm run cli -- clm measure --force
 npm run cli -- clm use minimal
 ```
 
-Imports honor the manifest's targets and require its declared credential environment variables. Inspect the manifest before importing it. The GitHub entry uses the pinned legacy stdio server; migration to the [maintained GitHub MCP server](https://github.com/github/github-mcp-server) is a release follow-up. Use the Local Developer pack for a demo that does not depend on external account access.
+Imports honor the manifest's targets and require its declared credential environment variables. Inspect the manifest before importing it. Use the Local Developer or Agent Craft pack for a demo that does not depend on external account access.
+
+The GitHub **MCP** entry is the archived `@modelcontextprotocol/server-github`, deprecated upstream and kept only because it is the one of the two that works in OpenCode. On Claude Code and Codex, prefer the **GitHub plugin**, which is the maintained [official server](https://github.com/github/github-mcp-server) and authenticates inside the agent. Note that the npm package published as `github-mcp-server` is unrelated to GitHub and is deliberately not used here.
 
 ## Checks and packaging
 
