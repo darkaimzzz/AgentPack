@@ -143,10 +143,14 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
       const base = { agent: key, configPath: adapter.configPath(), backupPath: token.backupPath }
       try {
         if (!cap.supportedAgents.includes(key) || !supportsType(adapter, cap)) {
+          // Not a failure — this agent simply cannot host this kind of
+          // capability. Reporting it as failed would make a correct outcome
+          // look broken.
           const why = cap.type === 'plugin' && !supportsType(adapter, cap)
             ? `${adapter.name} has no git-marketplace plugin system`
             : `${cap.name} does not support ${adapter.name}`
-          return { ...base, status: 'failed' as const, error: why }
+          onProgress({ kind: 'agent', agent: key, status: 'unsupported', detail: cap.name })
+          return { ...base, status: 'unsupported' as const, error: why }
         }
         // Compare what is actually on disk, not merely whether the id exists.
         // An entry with a stale command, a changed scope, or enabled:false would

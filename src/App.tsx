@@ -224,6 +224,64 @@ function Project({ analysis }: { analysis: Analysis }) {
 
 /* ---------------------------------------------------------------- screen 3 */
 
+/** MCP servers and plugins are different mechanisms — the UI says so. */
+const KIND = {
+  mcp: {
+    label: 'MCP servers',
+    blurb: 'Separate processes AgentPack launches and verifies. Work across all three agents.',
+    cls: 'mcp',
+  },
+  plugin: {
+    label: 'Plugins',
+    blurb: 'Skills and commands loaded from a git marketplace, inside the agent itself. Claude Code and Codex only — OpenCode has no marketplace system.',
+    cls: 'plugin',
+  },
+} as const
+
+function CapabilityCard({
+  c, on, toggle, reason, targets,
+}: {
+  c: Capability
+  on: boolean
+  toggle: (id: string) => void
+  reason?: string
+  targets: DetectedAgent[]
+}) {
+  const needs = [...(c.inputs ?? []).map((i) => i.key), ...(c.secrets ?? []).map((s) => s.key)]
+  const cannot = targets.filter((t) => !c.supportedAgents.includes(t.key))
+  return (
+    <div
+      className={`card pick ${KIND[c.type].cls} ${on ? 'on' : ''}`}
+      role="checkbox"
+      aria-checked={on}
+      tabIndex={0}
+      onClick={() => toggle(c.id)}
+      onKeyDown={(e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggle(c.id) }
+      }}
+    >
+      <div style={{ display: 'flex', gap: 12 }}>
+        <div className={`check ${on ? 'on' : ''}`}>{on ? '✓' : ''}</div>
+        <div className="grow">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+            <span className="title">{c.name}</span>
+            {needs.map((n) => <span key={n} className="tag need">{n}</span>)}
+            {c.requires?.binaries?.map((b) => (
+              <span key={b} className="tag need">needs {b} CLI</span>
+            ))}
+          </div>
+          <div className="meta">{c.description}</div>
+          {reason && <div className="meta why">{reason}</div>}
+          <div className="meta" style={{ marginTop: 5 }}>
+            {c.source}
+            {cannot.length > 0 && ` · not available on ${cannot.map((u) => u.name).join(', ')}`}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Recommend({
   analysis, selected, toggle, targets,
 }: {
@@ -232,42 +290,52 @@ function Recommend({
   toggle: (id: string) => void
   targets: DetectedAgent[]
 }) {
-  const card = (c: Capability, reason?: string) => {
-    const on = selected.has(c.id)
-    const needs = [...(c.inputs ?? []).map((i) => i.key), ...(c.secrets ?? []).map((s) => s.key)]
-    const unsupported = targets.filter((t) => !c.supportedAgents.includes(t.key))
-    return (
-      <div key={c.id} className={`card pick ${on ? 'on' : ''}`} onClick={() => toggle(c.id)}>
-        <div className="row" style={{ display: 'flex', gap: 12 }}>
-          <div className={`check ${on ? 'on' : ''}`}>{on ? '✓' : ''}</div>
-          <div className="grow">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-              <span className="title">{c.name}</span>
-              <span className="tag">{c.type.toUpperCase()}</span>
-              {needs.map((n) => <span key={n} className="tag need">{n}</span>)}
-            </div>
-            <div className="meta">{c.description}</div>
-            {reason && <div className="meta" style={{ color: 'var(--accent)', marginTop: 5 }}>{reason}</div>}
-            <div className="meta" style={{ marginTop: 5 }}>
-              {c.source} · works with {c.supportedAgents.join(', ')}
-              {unsupported.length > 0 && ` · not supported on ${unsupported.map((u) => u.name).join(', ')}`}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const [tab, setTab] = useState<'mcp' | 'plugin'>('mcp')
+
+  const recommended = analysis.recommendations.filter((r) => r.capability.type === tab)
+  const extras = analysis.extras.filter((c) => c.type === tab)
+  const count = (t: 'mcp' | 'plugin') =>
+    analysis.recommendations.filter((r) => r.capability.type === t).length +
+    analysis.extras.filter((c) => c.type === t).length
+  const chosenIn = (t: 'mcp' | 'plugin') =>
+    [...analysis.recommendations.map((r) => r.capability), ...analysis.extras]
+      .filter((c) => c.type === t && selected.has(c.id)).length
 
   return (
     <>
-      <h2>Recommended capabilities</h2>
-      <p className="sub">Chosen by deterministic rules from what we found in your project.</p>
-      {analysis.recommendations.map((r) => card(r.capability, r.reason))}
-      {analysis.extras.length > 0 && (
-        <>
-          <div className="section-label">Also available</div>
-          {analysis.extras.map((c) => card(c))}
-        </>
+      <h2>Choose capabilities</h2>
+      <p className="sub">Recommendations come from deterministic rules — every one says why.</p>
+
+      <div className="tabs" role="tablist">
+        {(['mcp', 'plugin'] as const).map((t) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`tab ${t} ${tab === t ? 'on' : ''}`}
+            onClick={() => setTab(t)}
+          >
+            {KIND[t].label}
+            <span className="count">{chosenIn(t)}/{count(t)}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="sub kindblurb">{KIND[tab].blurb}</p>
+
+      {recommended.length > 0 && <div className="section-label">Recommended for this project</div>}
+      {recommended.map((r) => (
+        <CapabilityCard key={r.capability.id} c={r.capability} on={selected.has(r.capability.id)}
+          toggle={toggle} reason={r.reason} targets={targets} />
+      ))}
+
+      {extras.length > 0 && <div className="section-label">Also available</div>}
+      {extras.map((c) => (
+        <CapabilityCard key={c.id} c={c} on={selected.has(c.id)} toggle={toggle} targets={targets} />
+      ))}
+
+      {recommended.length + extras.length === 0 && (
+        <div className="card meta">Nothing of this kind in the registry yet.</div>
       )}
     </>
   )
@@ -306,15 +374,33 @@ function Plan({
         </div>
       ))}
 
-      <div className="section-label">Capabilities</div>
-      {chosen.map((c) => (
-        <div key={c.id} className="card">
-          <div className="title">{c.name}</div>
-          <div className="meta mono" style={{ marginTop: 4 }}>
-            {c.install.command} {c.install.args.join(' ').replace('${projectDir}', dir)}
+      {(['mcp', 'plugin'] as const).map((kind) => {
+        const group = chosen.filter((c) => c.type === kind)
+        if (!group.length) return null
+        return (
+          <div key={kind}>
+            <div className={`kindhead ${kind}`}>
+              <span className="dotkind" /> {kind === 'mcp' ? 'MCP servers' : 'Plugins'}
+              <span className="meta">
+                {kind === 'mcp' ? 'launched as a process' : 'marketplace + enable flag, loaded in-process'}
+              </span>
+            </div>
+            {group.map((c) => (
+              <div key={c.id} className={`card ${kind}`}>
+                <div className="title">{c.name}</div>
+                <div className="meta mono" style={{ marginTop: 4 }}>
+                  {c.type === 'mcp'
+                    ? `${c.install?.command} ${(c.install?.args ?? []).join(' ').replace('${projectDir}', dir)}`
+                    : `${c.plugin?.name}@${c.plugin?.marketplace} — github.com/${c.plugin?.repo}`}
+                </div>
+                {c.requires?.binaries?.length && (
+                  <div className="caveat">requires the {c.requires.binaries.join(', ')} CLI on PATH</div>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {fields.length > 0 && (
         <>
@@ -425,13 +511,42 @@ function Report({
   events: ProgressEvent[]
 }) {
   const [showLogs, setShowLogs] = useState(false)
-  const failed = report.capabilities.filter((c) => c.health.status === 'failed' || c.results.some((r) => r.status === 'failed' || r.status === 'conflict'))
+  const failed = report.capabilities.filter(
+    (c) => c.health.status === 'failed' || c.results.some((r) => r.status === 'failed' || r.status === 'conflict'),
+  )
   const totalTools = report.capabilities.reduce((n, c) => n + c.health.tools.length, 0)
+  const mcps = report.capabilities.filter((c) => c.capability.type === 'mcp')
+  const plugins = report.capabilities.filter((c) => c.capability.type === 'plugin')
+
+  /** Only show agent columns that could actually host this kind of capability. */
+  const columnsFor = (kind: 'mcp' | 'plugin') =>
+    targets.filter((t) => (kind === 'plugin' ? t.key !== 'opencode' : true))
+
+  const agentCell = (c: typeof report.capabilities[number], key: string) => {
+    const r = c.results.find((x) => x.agent === key)
+    const cls = !r ? 'skip'
+      : r.status === 'failed' ? 'bad'
+      : r.status === 'conflict' ? 'warn'
+      : r.status === 'unsupported' ? 'skip'
+      : r.status === 'already-present' ? 'skip' : 'ok'
+    const label = !r ? '—'
+      : r.status === 'installed' ? 'Installed'
+      : r.status === 'already-present' ? 'Already there'
+      : r.status === 'conflict' ? 'Conflict'
+      : r.status === 'unsupported' ? 'n/a' : 'Failed'
+    return (
+      <td key={key}>
+        <span className={`cell ${cls}`} title={r?.error ?? ''}>
+          {cls === 'ok' ? '✓' : cls === 'bad' ? '✗' : cls === 'warn' ? '!' : '·'} {label}
+        </span>
+      </td>
+    )
+  }
 
   return (
     <>
       <h2>Health report</h2>
-      <p className="sub">Every server below was started and asked what it can do.</p>
+      <p className="sub">What was written, and how far we could actually verify it.</p>
 
       {rolledBack ? (
         <div className="banner">
@@ -446,78 +561,117 @@ function Report({
       ) : (
         <div className="banner">
           <div className="h">
-            {report.capabilities.length} capabilities · {targets.length} agents · {totalTools} tools verified
+            {mcps.length} MCP {mcps.length === 1 ? 'server' : 'servers'}
+            {plugins.length > 0 && ` · ${plugins.length} ${plugins.length === 1 ? 'plugin' : 'plugins'}`}
+            {totalTools > 0 && ` · ${totalTools} tools verified`}
           </div>
-          <div className="meta">All servers started and answered tools/list.</div>
+          <div className="meta">
+            {totalTools > 0 && 'Every MCP server started and answered tools/list. '}
+            {plugins.length > 0 && 'Plugins are configured; they load inside the agent.'}
+          </div>
         </div>
       )}
 
-      <table className="matrix">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            {targets.map((t) => <th key={t.key}>{t.name}</th>)}
-            <th>Health check</th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.capabilities.map((c) => (
-            <tr key={c.capability.id}>
-              <td>
-                <div className="title">{c.capability.name}</div>
-                {c.health.tools.length > 0 && (
-                  <div className="tools">{c.health.tools.slice(0, 8).join(', ')}
-                    {c.health.tools.length > 8 && ` +${c.health.tools.length - 8} more`}
-                  </div>
-                )}
-              </td>
-              {targets.map((t) => {
-                const r = c.results.find((x) => x.agent === t.key)
-                const cls = !r ? 'skip'
-                  : r.status === 'failed' ? 'bad'
-                  : r.status === 'conflict' ? 'warn'
-                  : r.status === 'already-present' ? 'skip' : 'ok'
-                const label = !r ? '—'
-                  : r.status === 'installed' ? 'Installed'
-                  : r.status === 'already-present' ? 'Already there'
-                  : r.status === 'conflict' ? 'Conflict' : 'Failed'
-                return (
-                  <td key={t.key}>
-                    <span className={`cell ${cls}`} title={r?.error ?? ''}>
-                      {cls === 'ok' ? '✓' : cls === 'bad' ? '✗' : cls === 'warn' ? '!' : '·'} {label}
-                    </span>
-                  </td>
-                )
-              })}
-              <td>
-                {c.health.status === 'configured' ? (
-                  <>
-                    <span className="cell skip">· Configured</span>
-                    <div className="meta" style={{ fontSize: 11 }}>
-                      loads inside the agent; not verifiable from here
-                    </div>
-                  </>
-                ) : c.health.reachable ? (
-                  <>
-                    <span className="cell ok">✓ {c.health.tools.length} tools discovered</span>
-                    <div className="meta" style={{ fontSize: 11 }}>
-                      {c.health.server?.name} {c.health.server?.version} · {c.health.durationMs}ms
-                    </div>
-                    {(c.capability.secrets?.length ?? 0) > 0 && (
-                      <div className="caveat">credential not verified by tools/list</div>
+      {mcps.length > 0 && (
+        <>
+          <div className="kindhead mcp">
+            <span className="dotkind" /> MCP servers
+            <span className="meta">launched and verified by AgentPack</span>
+          </div>
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                {columnsFor('mcp').map((t) => <th key={t.key}>{t.name}</th>)}
+                <th>Health check</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mcps.map((c) => (
+                <tr key={c.capability.id}>
+                  <td>
+                    <div className="title">{c.capability.name}</div>
+                    {c.health.tools.length > 0 && (
+                      <div className="tools">{c.health.tools.slice(0, 6).join(', ')}
+                        {c.health.tools.length > 6 && ` +${c.health.tools.length - 6} more`}
+                      </div>
                     )}
-                  </>
-                ) : (
-                  <>
-                    <span className="cell bad">✗ failed</span>
-                    <div className="meta" style={{ fontSize: 11 }}>{c.health.error}</div>
-                  </>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  </td>
+                  {columnsFor('mcp').map((t) => agentCell(c, t.key))}
+                  <td>
+                    {c.health.reachable ? (
+                      <>
+                        <span className="cell ok">✓ {c.health.tools.length} tools discovered</span>
+                        <div className="meta" style={{ fontSize: 11 }}>
+                          {c.health.server?.name} {c.health.server?.version} · {c.health.durationMs}ms
+                        </div>
+                        {(c.capability.secrets?.length ?? 0) > 0 && (
+                          <div className="caveat">credential not verified by tools/list</div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="cell bad">✗ failed</span>
+                        <div className="meta" style={{ fontSize: 11 }}>{c.health.error}</div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {plugins.length > 0 && (
+        <>
+          <div className="kindhead plugin">
+            <span className="dotkind" /> Plugins
+            <span className="meta">registered in the agent; they load in-process</span>
+          </div>
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                {columnsFor('plugin').map((t) => <th key={t.key}>{t.name}</th>)}
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plugins.map((c) => (
+                <tr key={c.capability.id}>
+                  <td>
+                    <div className="title">{c.capability.name}</div>
+                    <div className="tools">{c.capability.plugin?.name}@{c.capability.plugin?.marketplace}</div>
+                  </td>
+                  {columnsFor('plugin').map((t) => agentCell(c, t.key))}
+                  <td>
+                    {c.health.status === 'configured' ? (
+                      <>
+                        <span className="cell skip">· Configured</span>
+                        <div className="meta" style={{ fontSize: 11 }}>
+                          restart the agent to load it
+                        </div>
+                        <div className="caveat">not verifiable from here</div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="cell bad">✗ failed</span>
+                        <div className="meta" style={{ fontSize: 11 }}>{c.health.error}</div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {targets.some((t) => t.key === 'opencode') && (
+            <p className="meta" style={{ marginTop: 8 }}>
+              OpenCode is not shown: it has no git-marketplace plugin system, so plugins do not apply to it.
+            </p>
+          )}
+        </>
+      )}
 
       <div style={{ marginTop: 18 }}>
         <button className="btn small ghost" onClick={() => setShowLogs((v) => !v)}>

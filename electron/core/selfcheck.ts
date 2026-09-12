@@ -278,7 +278,7 @@ test('unsupported agent is reported, not silently skipped', async () => {
   try {
     const r = await install({ capabilityIds: ['playwright'], agents: ['claude', 'codex'], projectDir: sandbox })
     const codex = r.capabilities[0].results.find((x) => x.agent === 'codex')!
-    assert.equal(codex.status, 'failed')
+    assert.equal(codex.status, 'unsupported')
     assert.match(codex.error!, /does not support/)
     rollback()
   } finally {
@@ -622,7 +622,7 @@ test('OpenCode is reported unsupported for plugins, not silently skipped', async
   seed()
   const r = await install({ capabilityIds: ['superpowers'], agents: ['opencode'], projectDir: sandbox })
   const res = r.capabilities[0].results[0]
-  assert.equal(res.status, 'failed')
+  assert.equal(res.status, 'unsupported', 'an agent that cannot host plugins is not a failure')
   assert.match(res.error!, /no git-marketplace plugin system/)
   rollbackAll()
 })

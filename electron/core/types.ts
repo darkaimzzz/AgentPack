@@ -55,7 +55,7 @@ export type DetectedAgent = {
 /** Result of writing one capability into one agent. */
 export type InstallResult = {
   agent: AgentKey
-  status: 'installed' | 'already-present' | 'conflict' | 'failed'
+  status: 'installed' | 'already-present' | 'conflict' | 'unsupported' | 'failed'
   configPath: string
   backupPath: string | null
   error?: string

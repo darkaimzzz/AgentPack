@@ -1,4 +1,7 @@
 :root {
+  --mcp: #5eead4;
+  --plugin: #c4a2fb;
+  --plugin-dim: #3b2d59;
   --bg: #0b0d10;
   --panel: #14181d;
   --panel-2: #1a1f26;
@@ -173,3 +176,43 @@ label.field .help { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 }
 .banner.bad { border-color: #43211f; background: #1a1211; }
 .banner .h { font-weight: 600; margin-bottom: 3px; }
+
+/* --- capability kinds ----------------------------------------------------- */
+
+.tabs { display: flex; gap: 8px; margin: 4px 0 14px; }
+.tab {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  transition: border-color .12s, color .12s, background .12s;
+}
+.tab:hover { color: var(--text); }
+.tab .count {
+  font-size: 11px; padding: 1px 7px; border-radius: 99px;
+  background: var(--bg); color: inherit;
+}
+.tab.on { color: var(--text); background: var(--panel-2); }
+.tab.mcp.on { border-color: var(--mcp); }
+.tab.plugin.on { border-color: var(--plugin); }
+
+.kindblurb { margin-bottom: 8px; }
+
+.kindhead {
+  display: flex; align-items: center; gap: 9px;
+  margin: 26px 0 10px; font-size: 12.5px; font-weight: 600;
+}
+.kindhead .meta { font-weight: 400; font-size: 11.5px; }
+.kindhead .dotkind { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.kindhead.mcp .dotkind { background: var(--mcp); }
+.kindhead.plugin .dotkind { background: var(--plugin); }
+
+/* A thin left edge marks what kind of thing each card is. */
+.card.mcp { border-left: 2px solid var(--accent-dim); }
+.card.plugin { border-left: 2px solid var(--plugin-dim); }
+.card.pick.mcp.on { border-color: var(--accent-dim); border-left-color: var(--mcp); background: #121a19; }
+.card.pick.plugin.on { border-color: var(--plugin-dim); border-left-color: var(--plugin); background: #17131f; }
+.card.pick.plugin.on .check { background: var(--plugin); border-color: var(--plugin); }
+.card.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.meta.why { color: var(--accent); margin-top: 5px; }
+.card.plugin .meta.why { color: var(--plugin); }

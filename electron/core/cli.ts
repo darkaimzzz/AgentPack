@@ -115,7 +115,7 @@ if (cmd === 'detect') {
     }
     for (const r of c.results) {
       const line = `  ${adapters[r.agent].name.padEnd(13)} ${r.status}${r.error ? ` — ${r.error}` : ''}`
-      console.log(r.status === 'failed' ? red(line) : line)
+      console.log(r.status === 'failed' ? red(line) : r.status === 'unsupported' ? dim(line) : line)
       if (r.status === 'failed' || r.status === 'conflict') allOk = false
     }
   }
