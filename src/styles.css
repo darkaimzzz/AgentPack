@@ -28,6 +28,16 @@ body {
 }
 
 button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.target-picker { border: 1px solid var(--line); border-radius: 8px; margin-top: 24px; padding: 16px; }
+.target-picker label { display: inline-flex; gap: 8px; margin-right: 24px; align-items: center; }
+.target-picker input { width: auto; accent-color: var(--accent); }
+.pack-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.pack { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.pack:hover { border-color: var(--accent); }
+.matrix .cell { white-space: nowrap; }
+.matrix .tools { overflow-wrap: anywhere; }
 code, .mono { font-family: var(--mono); font-size: 12px; }
 
 /* --- shell ---------------------------------------------------------------- */

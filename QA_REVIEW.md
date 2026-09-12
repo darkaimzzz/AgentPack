@@ -1,3 +1,5 @@
+> Historical review from before the hardening pass. See [current readiness and test results](docs/READINESS.md).
+
 # AgentPack live test and PRD review
 
 Reviewed September 12, 2026 against AgentPack_HackBattle_PRD.docx and the current repository.
@@ -153,3 +155,4 @@ For the judge demo: pick the credential-free pack, show the generated configs, i
 - `.qa/ui-e2e.mjs`, `.qa/edge-review.mjs`, `.qa/tool-calls.mjs`: review harnesses. These record observations; they are not yet a regression suite that fails on every known defect.
 
 Run from the repository root after `npm run build`. The UI harness requires the fixture `.qa/demo-project/package.json`; create it with Next.js, React and Supabase dependency entries if recreating the QA folder. Launch the UI harness through Electron with a Node child-process wrapper, as Electron is a GUI executable on Windows. Run the other two scripts with Node. npm access and local browser availability are needed for real MCP execution. QA runtimes and agent homes are excluded by `.qa/.gitignore`; retained logs contain only test credentials.
+

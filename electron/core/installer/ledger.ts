@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { ledgerPath, stateDir } from '../paths.ts'
 import type { BackupToken } from '../types.ts'
+import { atomicWrite } from '../files.ts'
 
 /**
  * What we changed and how to undo it. One JSON file — no database.
@@ -23,15 +24,17 @@ const read = (): LedgerEntry[] => {
   const p = ledgerPath()
   if (!existsSync(p)) return []
   try {
-    return JSON.parse(readFileSync(p, 'utf8')) as LedgerEntry[]
+    const rows = JSON.parse(readFileSync(p, 'utf8')) as LedgerEntry[]
+    if (!Array.isArray(rows)) throw new Error('expected an array')
+    return rows
   } catch {
-    return [] // a corrupt ledger must never block an install
+    throw new Error(`Install history is unreadable: ${p}. Preserve this file and restore it from backup before installing.`)
   }
 }
 
 const write = (entries: LedgerEntry[]) => {
   mkdirSync(stateDir(), { recursive: true })
-  writeFileSync(ledgerPath(), JSON.stringify(entries, null, 2) + '\n')
+  atomicWrite(ledgerPath(), JSON.stringify(entries, null, 2) + '\n')
 }
 
 export const entries = read

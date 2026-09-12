@@ -47,6 +47,9 @@ export const opencode: AgentAdapter = {
   read(cap: Capability): ConfigEntry | null {
     const e = load(this.configPath()).mcp?.[cap.id]
     if (!e) return null
+    if (typeof e !== 'object' || Array.isArray(e) || (e.command !== undefined &&
+      (!Array.isArray(e.command) || e.command.some((v) => typeof v !== 'string'))) ||
+      (e.enabled !== undefined && typeof e.enabled !== 'boolean')) throw new Error('Invalid MCP entry: ' + cap.id)
     const [command = '', ...args] = e.command ?? []
     return { command, args, env: e.environment ?? {}, enabled: e.enabled }
   },

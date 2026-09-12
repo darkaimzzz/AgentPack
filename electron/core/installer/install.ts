@@ -1,12 +1,20 @@
 import { adapters } from '../agents/index.ts'
 import { matchEntry, supportsType } from '../agents/adapter.ts'
 import { getCapability, resolveArgs, missingInputs } from '../capabilities/registry.ts'
-import { backup, restoreFile, deleteFile, hashFile } from './backup.ts'
-import { preflight, type PreflightResult } from './preflight.ts'
+import { backup, captureAfter, prepareRestore, addedEntries, hashFile } from './backup.ts'
+import * as dormant from '../clm/dormant.ts'
+import { isDeepStrictEqual } from 'node:util'
+import { redact } from './run.ts'
+import { statSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { preflight } from './preflight.ts'
 import { probe } from './health.ts'
 import * as ledger from './ledger.ts'
 import { stamp } from '../paths.ts'
-import type { AgentKey, Capability, HealthResult, InstallResult, ProgressEvent } from '../types.ts'
+import type {
+  AgentKey, Capability, CapabilityReport, HealthResult, InstallReport, InstallResult, ProgressEvent,
+} from '../types.ts'
+export type { CapabilityReport, InstallReport }
 
 export type InstallRequest = {
   capabilityIds: string[]
@@ -19,25 +27,24 @@ export type InstallRequest = {
   onProgress?: (e: ProgressEvent) => void
 }
 
-export type CapabilityReport = {
-  capability: Capability
-  results: InstallResult[]
-  health: HealthResult
-}
-
-export type InstallReport = {
-  id: string
-  capabilities: CapabilityReport[]
-  /** Pass this to rollback() to undo the whole run. */
-  ledgerId: string
-  preflight?: PreflightResult
-}
 
 export async function install(req: InstallRequest): Promise<InstallReport> {
-  const { capabilityIds, agents, projectDir, secrets = {}, inputs = {}, onProgress = () => {} } = req
-  const runId = stamp()
-  const secretValues = Object.values(secrets)
+  if (!req || !Array.isArray(req.capabilityIds) || !req.capabilityIds.length) throw new Error('Select at least one capability')
+  if (!Array.isArray(req.agents) || !req.agents.length || req.agents.some(k => !Object.hasOwn(adapters,k))) throw new Error('Select valid target agents')
+  if (typeof req.projectDir !== 'string' || !statSync(req.projectDir).isDirectory()) throw new Error('Select an existing project directory')
+  const capabilityIds = [...new Set(req.capabilityIds)]
+  const agents = [...new Set(req.agents)]
+  const { projectDir } = req
+  const runId = `${stamp()}-${randomUUID().slice(0,8)}`
   const caps = capabilityIds.map(getCapability)
+  const selectValues = (keys: string[], source: Record<string,string> = {}) => Object.fromEntries(keys.filter(k=>typeof source[k]==='string' && source[k].trim()).map(k=>[k,source[k]]))
+  const secrets=selectValues(caps.flatMap(c=>(c.secrets??[]).map(f=>f.key)),req.secrets)
+  const inputs=selectValues(caps.flatMap(c=>(c.inputs??[]).map(f=>f.key)),req.inputs)
+  const secretValues=Object.values(secrets)
+  const sanitize = (value: unknown): unknown => typeof value === 'string' ? redact(value, secretValues)
+    : Array.isArray(value) ? value.map(sanitize)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([k,v]) => [k,sanitize(v)])) : value
+  const onProgress = (event: ProgressEvent) => req.onProgress?.(sanitize(event) as ProgressEvent)
 
   // Preflight before any mutation: a missing runtime is one clear message here
   // rather than three cryptic spawn failures later (CLAUDE.md §12).
@@ -118,7 +125,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
 
     // Refuse rather than write a config containing a literal ${PLACEHOLDER},
     // which would look installed and fail later inside the agent.
-    const missing = missingInputs(cap, inputs)
+    const missing = [...missingInputs(cap, inputs), ...(cap.secrets??[]).filter(s=>!secrets[s.key]).map(s=>s.key)]
     if (missing.length) {
       const error = `missing required input: ${missing.join(', ')}`
       onProgress({ kind: 'stage', stage: 'configure', detail: `${cap.name}: ${error}` })
@@ -139,8 +146,9 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     onProgress({ kind: 'stage', stage: 'configure', detail: cap.name })
     const results: InstallResult[] = agents.map((key) => {
       const adapter = adapters[key]
-      const token = backups.find((b) => b.agent === key && b.configPath === adapter.configPath())!
-      const base = { agent: key, configPath: adapter.configPath(), backupPath: token.backupPath }
+      const configPath = cap.type==='plugin' ? adapter.pluginConfigPath?.() ?? adapter.configPath() : adapter.configPath()
+      const token = backups.find((b) => b.agent === key && b.configPath === configPath)!
+      const base = { agent: key, configPath, backupPath: token.backupPath }
       try {
         if (!cap.supportedAgents.includes(key) || !supportsType(adapter, cap)) {
           // Not a failure — this agent simply cannot host this kind of
@@ -161,20 +169,22 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
           return { ...base, status: 'already-present' as const }
         }
         if (state === 'different') {
-          const existing = adapter.read(resolved)
           const error =
             `${cap.name} is already configured in ${adapter.name} with different settings ` +
-            `(${existing?.enabled === false ? 'disabled' : `${existing?.command} ${existing?.args.join(' ')}`}). ` +
             'Left untouched — remove it there, or roll back, to replace it.'
           onProgress({ kind: 'agent', agent: key, status: 'conflict', detail: `${cap.name}: differs` })
           return { ...base, status: 'conflict' as const, error }
         }
+        const expectedHash = token.afterPath ? token.postHash : token.backupPath ? hashFile(token.backupPath) : null
+        if (hashFile(configPath) !== expectedHash) throw new Error('Config changed during installation. This entry was left untouched; review the file and retry.')
         if (cap.type === 'plugin') adapter.writePlugin!(resolved)
         else adapter.write(resolved, env)
+        captureAfter(token,runId)
+        ledger.amend(runId,{backups})
         onProgress({ kind: 'agent', agent: key, status: 'installed', detail: cap.name })
         return { ...base, status: 'installed' as const }
       } catch (e) {
-        const error = (e as Error).message
+        const error = redact((e as Error).message,secretValues)
         onProgress({ kind: 'agent', agent: key, status: 'failed', detail: `${cap.name}: ${error}` })
         return { ...base, status: 'failed' as const, error }
       }
@@ -184,7 +194,9 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     const configured = results.some((r) => r.status === 'installed' || r.status === 'already-present')
 
     let health: HealthResult
-    if (cap.type === 'plugin') {
+    if (!configured) {
+      health = {status:'failed',method:'config-only',configured:false,reachable:false,tools:[],durationMs:0,error:'No compatible target was configured. See the agent results.'}
+    } else if (cap.type === 'plugin') {
       // A plugin has no server to start — its skills and commands load inside
       // the agent process. We can confirm the config is correct and nothing
       // more, so we say exactly that rather than implying verification.
@@ -217,12 +229,6 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     reports.push({ capability: cap, results, health })
   }
 
-  // Record what the files look like now, so rollback can tell "untouched since
-  // we wrote it" from "the user or the agent edited it afterwards".
-  ledger.amend(runId, {
-    backups: backups.map((b) => ({ ...b, postHash: hashFile(b.configPath) })),
-  })
-
   onProgress({ kind: 'stage', stage: 'done' })
   return { id: runId, capabilities: reports, ledgerId: runId, preflight: pre }
 }
@@ -251,62 +257,33 @@ export type RollbackOutcome = {
  */
 export function rollback(ledgerId?: string): RollbackOutcome | null {
   const entry = ledgerId ? ledger.entries().find((e) => e.id === ledgerId) : ledger.latestUndoable()
-  if (!entry) return null
+  if (!entry || entry.rolledBackAt) return null
   const outcome = undoEntry(entry)
   ledger.markRolledBack(entry.id)
   return outcome
 }
 
 function undoEntry(entry: ledger.LedgerEntry): RollbackOutcome {
-  const restored: string[] = []
-  const removed: string[] = []
-  const merged: string[] = []
-  const caps = entry.capabilities.map((id) => {
-    try {
-      return getCapability(id)
-    } catch {
-      return null
-    }
-  }).filter((c): c is Capability => c !== null)
-
-  for (const token of entry.backups) {
-    const adapter = adapters[token.agent]
-    const current = hashFile(token.configPath)
-    if (current === null) continue // already gone; nothing to undo
-
-    const untouched = token.postHash != null && current === token.postHash
-
-    const undo = (c: Capability) => (c.type === 'plugin' ? adapter.removePlugin?.(c) : adapter.remove(c))
-    if (!token.existed) {
-      // We created this file. Delete it if it is still ours alone; otherwise
-      // strip our entries and keep whatever else arrived.
-      if (untouched) {
-        deleteFile(token.configPath)
-        removed.push(token.configPath)
-      } else {
-        for (const cap of caps) undo(cap)
-        if (adapter.isEmpty()) {
-          deleteFile(token.configPath)
-          removed.push(token.configPath)
-        } else {
-          merged.push(token.configPath)
-        }
-      }
-      continue
-    }
-
-    if (untouched) {
-      restoreFile(token)
-      restored.push(token.configPath)
-    } else {
-      for (const cap of caps) undo(cap)
-      merged.push(token.configPath)
+  const outcome: RollbackOutcome = {entryId:entry.id,restored:[],removed:[],merged:[]}
+  const forget: string[] = []
+  for (const token of entry.backups.filter(t => t.agent === 'claude')) {
+    for (const [id, native] of addedEntries(token, 'mcpServers')) {
+      const saved = dormant.get(id, 'claude')
+      if (!saved) continue
+      const value = saved.entry.native ?? { type:'stdio', command:saved.entry.command, args:saved.entry.args, ...(Object.keys(saved.entry.env).length ? {env:saved.entry.env} : {}) }
+      if (!isDeepStrictEqual(value, native)) throw new Error(`Rollback conflict: saved dormant entry ${id} changed. Restore it in Manage before undoing this run.`)
+      forget.push(id)
     }
   }
-
-  return { entryId: entry.id, restored, removed, merged }
+  const actions = entry.backups.map(token=>({token,action:prepareRestore(token)}))
+  for (const {token,action} of actions) {
+    if (!action) continue
+    action.apply()
+    outcome[action.kind].push(token.configPath)
+  }
+  for (const id of forget) dormant.drop(id, 'claude')
+  return outcome
 }
-
 /**
  * Undo every run that has not been rolled back, newest first.
  *

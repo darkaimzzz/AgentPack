@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Dashboard from './clm/Dashboard.tsx'
 import type {
-  AgentKey, Analysis, Capability, DetectedAgent, InstallReport, ProgressEvent,
+  AgentKey, Analysis, Capability, DetectedAgent, InstallReport, ProgressEvent, Pack,
 } from './types.ts'
 
 type Step = 'detect' | 'project' | 'recommend' | 'plan' | 'install' | 'report'
@@ -28,7 +28,10 @@ export default function App() {
   const [mode, setMode] = useState<'install' | 'manage'>('install')
   const [step, setStep] = useState<Step>('detect')
   const [agents, setAgents] = useState<DetectedAgent[]>([])
+  const [targetKeys,setTargetKeys]=useState<Set<string>>(new Set())
+  const [packs,setPacks]=useState<Pack[]>([])
   const [dir, setDir] = useState('')
+  const [demoProject, setDemoProject] = useState<string | null>(null)
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [values, setValues] = useState<Record<string, string>>({})
@@ -39,12 +42,15 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    window.agentpack.detectAgents().then(setAgents)
+    window.agentpack.info().then(info => setDemoProject(info.demo ? info.projectDir : null)).catch(() => {})
+    Promise.all([window.agentpack.detectAgents(),window.agentpack.listRegistry()]).then(([found,registry])=>{
+      setAgents(found);setTargetKeys(new Set(found.filter(a=>a.detected).map(a=>a.key)));setPacks(registry.packs)
+    }).catch(e=>setError(`Could not load AgentPack: ${e.message}`))
   }, [])
 
   useEffect(() => window.agentpack.onProgress((e) => setEvents((prev) => [...prev, e])), [])
 
-  const targets = agents.filter((a) => a.detected)
+  const targets = agents.filter((a) => a.detected && targetKeys.has(a.key))
   const chosen = useMemo(
     () => (analysis ? [...analysis.recommendations.map((r) => r.capability), ...analysis.extras] : [])
       .filter((c) => selected.has(c.id)),
@@ -100,6 +106,7 @@ export default function App() {
         inputs,
       })
       setReport(r)
+      setValues({})
       setStep('report')
     } catch (e) {
       // Leave the user on the install screen WITH a message and a way back,
@@ -116,9 +123,10 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">Agent<span>Pack</span></div>
+        {demoProject && <span className="tag">Demo sandbox</span>}
         <div className="modeswitch">
           {(['install', 'manage'] as const).map((m) => (
-            <button key={m} className={`modebtn ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>
+            <button key={m} disabled={busy} className={`modebtn ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>
               {m === 'install' ? 'Install' : 'Manage'}
             </button>
           ))}
@@ -143,10 +151,16 @@ export default function App() {
               <div className="meta">{error}</div>
             </div>
           )}
-          {step === 'detect' && <Detect agents={agents} />}
+          {step === 'detect' && <>
+            {demoProject && <div className="banner"><div className="h">Demo workspace</div><p>Try installation and rollback with three sample agent configs.</p><button onClick={() => analyze(demoProject)}>Scan demo project</button></div>}
+            <Detect agents={agents} />
+            <fieldset className="target-picker"><legend>Configure these agents</legend>
+              {agents.filter(a=>a.detected).map(a=><label key={a.key}><input type="checkbox" checked={targetKeys.has(a.key)} onChange={()=>setTargetKeys(prev=>{const next=new Set(prev);next.has(a.key)?next.delete(a.key):next.add(a.key);return next})}/>{a.name}</label>)}
+            </fieldset>
+          </>}
           {step === 'project' && analysis && <Project analysis={analysis} />}
           {step === 'recommend' && analysis && (
-            <Recommend analysis={analysis} selected={selected} toggle={toggle} targets={targets} />
+            <Recommend analysis={analysis} selected={selected} toggle={toggle} targets={targets} packs={packs} selectPack={ids=>setSelected(new Set(ids))} />
           )}
           {step === 'plan' && (
             <Plan chosen={chosen} targets={targets} dir={dir} values={values} setValues={setValues} />
@@ -163,8 +177,8 @@ export default function App() {
         step={step} setStep={setStep} busy={busy} targets={targets} analysis={analysis}
         chosen={chosen} values={values} dir={dir} report={report} rolledBack={rolledBack}
         onScan={async () => {
-          const picked = await window.agentpack.pickDirectory()
-          if (picked) analyze(picked)
+          try {const picked = await window.agentpack.pickDirectory();if (picked) await analyze(picked)}
+          catch(e){setError(`Could not select a folder: ${(e as Error).message}`)}
         }}
         onInstall={runInstall}
         onRollback={async () => {
@@ -191,14 +205,28 @@ export default function App() {
 
 function Detect({ agents }: { agents: DetectedAgent[] }) {
   const found = agents.filter((a) => a.detected).length
+  // agents is empty only until detection returns; once it has, an empty result
+  // means none are installed — a real answer, not a loading state.
+  const loading = agents.length === 0
   return (
     <>
       <h2>Detected agents</h2>
       <p className="sub">
-        {found
-          ? `${found} supported coding ${found === 1 ? 'agent' : 'agents'} found on this machine.`
-          : 'Looking for supported coding agents…'}
+        {loading
+          ? 'Looking for supported coding agents…'
+          : found
+            ? `${found} supported coding ${found === 1 ? 'agent' : 'agents'} found on this machine.`
+            : 'No supported coding agents found on this machine.'}
       </p>
+      {!loading && found === 0 && (
+        <div className="banner bad">
+          <div className="h">Nothing to configure</div>
+          <div className="meta">
+            AgentPack works with Claude Code, Codex and OpenCode. Install one, then reopen
+            AgentPack — detection runs at startup.
+          </div>
+        </div>
+      )}
       {agents.map((a) => (
         <div key={a.key} className={`card row ${a.detected ? '' : 'dim'}`}>
           <div className={`dot ${a.detected ? 'ok' : 'idle'}`} />
@@ -297,12 +325,14 @@ function CapabilityCard({
 }
 
 function Recommend({
-  analysis, selected, toggle, targets,
+  analysis, selected, toggle, targets, packs, selectPack,
 }: {
   analysis: Analysis
   selected: Set<string>
   toggle: (id: string) => void
   targets: DetectedAgent[]
+  packs: Pack[]
+  selectPack: (ids:string[])=>void
 }) {
   const [tab, setTab] = useState<'mcp' | 'plugin'>('mcp')
 
@@ -318,7 +348,10 @@ function Recommend({
   return (
     <>
       <h2>Choose capabilities</h2>
-      <p className="sub">Recommendations come from deterministic rules — every one says why.</p>
+      <p className="sub">Choose a pack or select capabilities for this project.</p>
+      <div className="pack-grid">{packs.map(pack=><button className="card pack" key={pack.id} onClick={()=>selectPack(pack.capabilities)}>
+        <strong>{pack.name}</strong><span className="meta">{pack.description}</span>
+      </button>)}</div>
 
       <div className="tabs" role="tablist">
         {(['mcp', 'plugin'] as const).map((t) => (
@@ -374,7 +407,7 @@ function Plan({
   return (
     <>
       <h2>Install plan</h2>
-      <p className="sub">Exactly what will change before anything runs.</p>
+      <p className="sub">Review the selected capabilities and credentials. Existing entries with different settings are left unchanged.</p>
 
       <div className="section-label">Files to be modified — each backed up first</div>
       {targets.map((t) => (
@@ -407,7 +440,7 @@ function Plan({
                     ? `${c.install?.command} ${(c.install?.args ?? []).join(' ').replace('${projectDir}', dir)}`
                     : `${c.plugin?.name}@${c.plugin?.marketplace} — github.com/${c.plugin?.repo}`}
                 </div>
-                {c.requires?.binaries?.length && (
+                {!!c.requires?.binaries?.length && (
                   <div className="caveat">requires the {c.requires.binaries.join(', ')} CLI on PATH</div>
                 )}
               </div>
@@ -565,19 +598,19 @@ function Report({
       {rolledBack ? (
         <div className="banner">
           <div className="h">Rolled back</div>
-          <div className="meta">Every modified config was restored from its backup.</div>
+          <div className="meta">This run was undone. Later unrelated settings were preserved.</div>
         </div>
       ) : failed.length ? (
         <div className="banner bad">
           <div className="h">{failed.length} of {report.capabilities.length} did not pass</div>
-          <div className="meta">Nothing is hidden — see the rows below. You can roll back.</div>
+          <div className="meta">Review the failed or conflicting entries below. You can undo this run.</div>
         </div>
       ) : (
         <div className="banner">
           <div className="h">
             {mcps.length} MCP {mcps.length === 1 ? 'server' : 'servers'}
             {plugins.length > 0 && ` · ${plugins.length} ${plugins.length === 1 ? 'plugin' : 'plugins'}`}
-            {totalTools > 0 && ` · ${totalTools} tools verified`}
+            {totalTools > 0 && ` · ${totalTools} tools discovered`}
           </div>
           <div className="meta">
             {totalTools > 0 && 'Every MCP server started and answered tools/list. '}
@@ -590,7 +623,7 @@ function Report({
         <>
           <div className="kindhead mcp">
             <span className="dotkind" /> MCP servers
-            <span className="meta">launched and verified by AgentPack</span>
+            <span className="meta">server reachability checked</span>
           </div>
           <table className="matrix">
             <thead>
@@ -747,7 +780,7 @@ function Footer(props: {
       </div>
 
       {step === 'detect' && (
-        <button className="btn primary" disabled={!targets.length || busy} onClick={props.onScan}>
+        <button className="btn primary" disabled={busy} onClick={props.onScan}>
           {busy ? 'Scanning…' : 'Scan a project…'}
         </button>
       )}
@@ -755,12 +788,12 @@ function Footer(props: {
         <button className="btn primary" onClick={() => setStep('recommend')}>Continue</button>
       )}
       {step === 'recommend' && (
-        <button className="btn primary" disabled={!chosen.length} onClick={() => setStep('plan')}>
+        <button className="btn primary" disabled={!chosen.length || !targets.length} onClick={() => setStep('plan')}>
           Review plan
         </button>
       )}
       {step === 'plan' && (
-        <button className="btn primary" disabled={busy || !!missing.length} onClick={props.onInstall}>
+        <button className="btn primary" disabled={busy || !!missing.length || !targets.length || !chosen.length} onClick={props.onInstall}>
           Install selected
         </button>
       )}

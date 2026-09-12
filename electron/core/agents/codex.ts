@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 import { home } from '../paths.ts'
+import { atomicWrite } from '../files.ts'
 import type { AgentAdapter, ConfigEntry } from './adapter.ts'
 import type { Capability } from '../types.ts'
 
@@ -21,7 +22,7 @@ import type { Capability } from '../types.ts'
  * Fall back to a basic string in that case.
  */
 export const tomlString = (s: string): string => {
-  if (!/['\n\r]/.test(s)) return `'${s}'`
+  if (!/['\x00-\x1f\x7f]/.test(s)) return `'${s}'`
   const escaped = s
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
@@ -39,7 +40,19 @@ const tableKey = (id: string) => (/^[A-Za-z0-9_-]+$/.test(id) ? id : tomlString(
 
 const read = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8') : '')
 
-type Servers = Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>
+/**
+ * Write back a line-edited document, keeping the file's trailing-newline
+ * convention. Splicing out a table at the END of the file otherwise swallows
+ * the final newline, which is enough on its own to stop a rollback being
+ * byte-identical.
+ */
+const writeLines = (p: string, lines: string[], original: string) => {
+  const out = lines.join('\n')
+  const endedWithNewline = original.endsWith('\n')
+  atomicWrite(p, endedWithNewline && !out.endsWith('\n') ? `${out}\n` : out)
+}
+
+type Servers = Record<string, { command?: string; args?: string[]; env?: Record<string, string>; enabled?: boolean }>
 
 const servers = (p: string): Servers => {
   const raw = read(p)
@@ -94,7 +107,27 @@ export const codex: AgentAdapter = {
   read(cap: Capability): ConfigEntry | null {
     const e = servers(this.configPath())[cap.id]
     if (!e) return null
-    return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {} }
+    if (typeof e !== 'object' || Array.isArray(e) || (e.command !== undefined && typeof e.command !== 'string') ||
+      (e.args !== undefined && (!Array.isArray(e.args) || e.args.some((v) => typeof v !== 'string'))) ||
+      (e.enabled !== undefined && typeof e.enabled !== 'boolean')) throw new Error('Invalid MCP entry: ' + cap.id)
+    return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {}, enabled: e.enabled }
+  },
+
+  setEnabled(cap, enabled) {
+    const p = this.configPath()
+    const text = read(p)
+    const range = tableRange(text, cap.id)
+    if (!range) throw new Error('Cannot safely edit nonstandard TOML table for ' + cap.id)
+    const lines = text.split('\n')
+    const start = range[0] + (lines[range[0]].trim() === '' ? 1 : 0)
+    let end = start + 1
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++
+    const index = lines.findIndex((line, i) => i > start && i < end && /^\s*enabled\s*=/.test(line))
+    if (index >= 0) lines[index] = lines[index].replace(/^(\s*enabled\s*=\s*)(true|false)/, '$1' + enabled)
+    else lines.splice(start + 1, 0, 'enabled = ' + enabled)
+    const next = lines.join('\n')
+    parseToml(next)
+    atomicWrite(p, next)
   },
 
   // Plugins, verified against a real ~/.codex/config.toml:
@@ -139,7 +172,7 @@ export const codex: AgentAdapter = {
     } catch (e) {
       throw new Error(`refusing to write invalid TOML for plugin ${cap.id}: ${(e as Error).message}`)
     }
-    writeFileSync(p, next)
+    atomicWrite(p, next)
   },
 
   removePlugin(cap: Capability) {
@@ -156,7 +189,7 @@ export const codex: AgentAdapter = {
     const from = start > 0 && lines[start - 1].trim() === '' ? start - 1 : start
     lines.splice(from, end - from)
     // Marketplace left registered on purpose: other plugins may depend on it.
-    writeFileSync(p, lines.join('\n'))
+    writeLines(p, lines, text)
   },
 
   write(cap: Capability, env: Record<string, string>) {
@@ -165,6 +198,7 @@ export const codex: AgentAdapter = {
     const lines = [
       '',
       `[mcp_servers.${key}]`,
+      'enabled = true',
       `command = ${tomlString(cap.install!.command)}`,
       `args = [${cap.install!.args.map(tomlString).join(', ')}]`,
     ]
@@ -184,7 +218,7 @@ export const codex: AgentAdapter = {
     } catch (e) {
       throw new Error(`refusing to write invalid TOML for ${cap.id}: ${(e as Error).message}`)
     }
-    writeFileSync(p, next)
+    atomicWrite(p, next)
   },
 
   remove(cap: Capability) {
@@ -195,7 +229,7 @@ export const codex: AgentAdapter = {
     if (!range) return
     const lines = text.split('\n')
     lines.splice(range[0], range[1] - range[0])
-    writeFileSync(p, lines.join('\n'))
+    writeLines(p, lines, text)
   },
 
   isEmpty() {

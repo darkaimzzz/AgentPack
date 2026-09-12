@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { globSync, lstatSync, readFileSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /**
  * Deterministic project stack detection (CLAUDE.md §11).
@@ -7,21 +7,8 @@ import { join, relative } from 'node:path'
  * carries the evidence that produced it, so the UI can always answer "why?".
  */
 
-export type Signal = {
-  id: string
-  label: string
-  /** Human-readable reason, shown verbatim on the Recommendations screen. */
-  evidence: string
-}
-
-export type ProjectScan = {
-  dir: string
-  signals: Signal[]
-  /** True when this looks like a software project at all. */
-  isProject: boolean
-  /** Every package.json we read, relative to the scanned directory. */
-  manifests: string[]
-}
+import type { ProjectScan, Signal } from '../types.ts'
+export type { ProjectScan, Signal }
 
 type Pkg = {
   dependencies?: Record<string, string>
@@ -37,17 +24,60 @@ const readJsonFile = <T>(p: string): T | null => {
   }
 }
 
-const isDir = (p: string) => {
+const readTextFile = (p: string): string | null => {
   try {
-    return statSync(p).isDirectory()
+    return readFileSync(p, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+const isPlainPath = (p: string) => {
+  try {
+    return !lstatSync(p).isSymbolicLink()
   } catch {
     return false
   }
 }
 
-const listDirs = (p: string) => {
+const IGNORED_PARTS = new Set([
+  'node_modules', '.next', '.nuxt', '.svelte-kit', '.astro', '.git', '.turbo',
+  '.vercel', '.cache', '.parcel-cache', 'dist', 'build', 'out', 'coverage',
+  'vendor', 'target', '.qa', '.agentpack', 'release',
+])
+const MAX_FILES = 256
+
+const isSafeRelative = (path: string) => {
+  if (!path || isAbsolute(path)) return false
+  const parts = path.replaceAll('\\', '/').split('/').filter(Boolean)
+  return !parts.includes('..') && !parts.some((part) => IGNORED_PARTS.has(part))
+}
+
+const isInside = (root: string, path: string) => {
+  const rel = relative(root, path)
+  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
+}
+
+/** Native globbing keeps wildcard behavior predictable; explicit depths bound IO. */
+const findFiles = (root: string, patterns: string[]) => {
+  if (!isPlainPath(root)) return []
   try {
-    return readdirSync(p).filter((d) => !d.startsWith('.') && isDir(join(p, d)))
+    const matches = globSync(patterns, { cwd: root, exclude: [...IGNORED_PARTS].map(p => `**/${p}/**`) })
+    return [...new Set(matches)]
+      .filter(isSafeRelative)
+      .filter((rel) => {
+        const absolute = resolve(root, rel)
+        if (!isInside(root, absolute) || !isPlainPath(absolute)) return false
+        // Do not cross a symlinked parent directory.
+        let parent = absolute
+        while (parent !== root) {
+          parent = resolve(parent, '..')
+          if (parent !== root && !isPlainPath(parent)) return false
+        }
+        return true
+      })
+      .sort((a, b) => a.split(/[\\/]/).length - b.split(/[\\/]/).length || a.localeCompare(b))
+      .slice(0, MAX_FILES)
   } catch {
     return []
   }
@@ -62,41 +92,35 @@ const listDirs = (p: string) => {
  */
 function collectManifests(root: string): Array<{ rel: string; pkg: Pkg }> {
   const out: Array<{ rel: string; pkg: Pkg }> = []
-  const seen = new Set<string>()
-
-  const add = (dir: string) => {
-    const file = join(dir, 'package.json')
-    if (seen.has(file) || !existsSync(file)) return
-    seen.add(file)
-    const pkg = readJsonFile<Pkg>(file)
-    if (pkg) out.push({ rel: relative(root, file) || 'package.json', pkg })
-  }
-
-  add(root)
+  const rootManifest = join(root, 'package.json')
+  const rootPkg = isPlainPath(rootManifest) ? readJsonFile<Pkg>(rootManifest) : null
 
   // Workspace patterns, from package.json or pnpm-workspace.yaml.
-  const rootPkg = out[0]?.pkg
   const declared = Array.isArray(rootPkg?.workspaces)
     ? rootPkg.workspaces
     : rootPkg?.workspaces?.packages ?? []
 
   const pnpmFile = join(root, 'pnpm-workspace.yaml')
-  const fromPnpm = existsSync(pnpmFile)
+  const pnpmText = isPlainPath(pnpmFile) ? readTextFile(pnpmFile) : null
+  const fromPnpm = pnpmText
     // Small, predictable YAML: a `packages:` list of quoted globs. Matching the
     // globs directly avoids taking on a YAML parser for two lines of config.
-    ? [...readFileSync(pnpmFile, 'utf8').matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?/gm)].map((m) => m[1].trim())
+    ? [...pnpmText.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?/gm)].map((m) => m[1].trim())
     : []
 
-  // Plus the conventional layout, which many repos use without declaring it.
-  const patterns = [...new Set([...declared, ...fromPnpm, 'apps/*', 'packages/*', 'services/*'])]
+  const declaredPatterns = [...(Array.isArray(declared) ? declared : []), ...fromPnpm]
+    .filter((pattern): pattern is string => typeof pattern === 'string')
+    .map((pattern) => pattern.replaceAll('\\', '/').replace(/\/$/, ''))
+    .filter((pattern) => !pattern.startsWith('!') && isSafeRelative(pattern) && !pattern.includes('**'))
+    .map((pattern) => `${pattern}/package.json`)
+    .slice(0, 64)
+  const boundedNested = [
+    'package.json', '*/package.json', '*/*/package.json', '*/*/*/package.json', '*/*/*/*/package.json',
+  ]
 
-  for (const pattern of patterns) {
-    if (pattern.endsWith('/*')) {
-      const base = join(root, pattern.slice(0, -2))
-      for (const child of listDirs(base)) add(join(base, child))
-    } else {
-      add(join(root, pattern))
-    }
+  for (const rel of findFiles(root, [...boundedNested, ...declaredPatterns])) {
+    const pkg = readJsonFile<Pkg>(join(root, rel))
+    if (pkg) out.push({ rel, pkg })
   }
 
   return out
@@ -164,7 +188,7 @@ const FILE_RULES: Array<{ id: string; label: string; paths: string[]; note?: str
   { id: 'php', label: 'PHP', paths: ['composer.json'] },
   { id: 'dotnet', label: '.NET', paths: ['global.json'] },
   { id: 'monorepo', label: 'Monorepo tooling', paths: ['turbo.json', 'nx.json', 'pnpm-workspace.yaml'] },
-  { id: 'nextjs', label: 'Next.js', paths: ['next.config.js', 'next.config.ts', 'next.config.mjs'] },
+  { id: 'nextjs', label: 'Next.js', paths: ['next.config.js', 'next.config.ts', 'next.config.mjs', 'next.config.cjs'] },
   { id: 'vite', label: 'Vite', paths: ['vite.config.js', 'vite.config.ts', 'vite.config.mjs'] },
 ]
 
@@ -184,6 +208,8 @@ export function scanProject(dir: string): ProjectScan {
     if (!signals.some((s) => s.id === id)) signals.push({ id, label, evidence })
   }
 
+  if (!isPlainPath(dir)) return { dir, signals, isProject: false, manifests: [] }
+
   // --- dependencies, across every workspace manifest ---
   const manifests = collectManifests(dir)
   if (manifests.length) add('node', 'Node.js', `${manifests.length} package.json file(s)`)
@@ -200,21 +226,34 @@ export function scanProject(dir: string): ProjectScan {
     }
   }
 
-  // --- marker files ---
+  // --- root marker files ---
   for (const rule of FILE_RULES) {
-    const hit = rule.paths.find((p) => existsSync(join(dir, p)))
+    const hit = rule.paths.find((p) => isPlainPath(join(dir, p)))
     if (hit) add(rule.id, rule.label, `${hit} present`)
   }
+
+  // Framework/service markers commonly live inside a monorepo app. Keep the
+  // search at four directory levels and skip generated, vendor and symlinked trees.
+  const nestedMarkers = findFiles(dir, [
+    '{*,*/*,*/*/*,*/*/*/*}/next.config.{js,ts,mjs,cjs}',
+    '{*,*/*,*/*/*,*/*/*/*}/supabase/config.toml',
+  ])
+  const nextMarker = nestedMarkers.find((path) => /(^|[\\/])next\.config\.(js|ts|mjs|cjs)$/.test(path))
+  if (nextMarker) add('nextjs', 'Next.js', `${nextMarker} present`)
+  const supabaseMarker = nestedMarkers.find((path) => /(^|[\\/])supabase[\\/]config\.toml$/.test(path))
+  if (supabaseMarker) add('supabase', 'Supabase', `${supabaseMarker} present`)
 
   // --- python ---
   for (const file of ['requirements.txt', 'pyproject.toml']) {
     const p = join(dir, file)
-    if (!existsSync(p)) continue
+    if (!isPlainPath(p)) continue
     add('python', 'Python', `${file} present`)
     // Reduce each line to its bare package name first, then match. Scanning the
     // raw text instead misses real distributions whose name merely starts with
     // the library: psycopg2-binary, django-rest-framework, flask-cors.
-    const declared = readFileSync(p, 'utf8')
+    const text = readTextFile(p)
+    if (text === null) continue
+    const declared = text
       .split('\n')
       .map((l) => l.split('#')[0].trim().replace(/^[-\s"']+/, ''))
       .map((l) => l.split(/[=<>~!;[\s,]/)[0].trim().toLowerCase())
@@ -225,17 +264,22 @@ export function scanProject(dir: string): ProjectScan {
     }
   }
 
-  // .env.example names the variables a project expects without leaking values.
-  const envExample = join(dir, '.env.example')
-  if (existsSync(envExample)) {
-    const keys = readFileSync(envExample, 'utf8')
+  // Read names only from bounded env files. Values never leave this function.
+  for (const envFile of findFiles(dir, [
+    '.env', '.env.*', '*/.env', '*/.env.*', '*/*/.env', '*/*/.env.*',
+    '*/*/*/.env', '*/*/*/.env.*', '*/*/*/*/.env', '*/*/*/*/.env.*',
+  ])) {
+    const text = readTextFile(join(dir, envFile))
+    if (text === null) continue
+    const keys = text
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith('#'))
       .map((l) => l.split('=')[0].trim())
-    if (keys.some((k) => /^DATABASE_URL$/i.test(k))) add('postgres', 'PostgreSQL', '.env.example declares DATABASE_URL')
-    if (keys.some((k) => /SUPABASE/i.test(k))) add('supabase', 'Supabase', '.env.example declares a SUPABASE_* variable')
-    if (keys.some((k) => /^GITHUB_/i.test(k))) add('github-env', 'GitHub credentials', '.env.example declares a GITHUB_* variable')
+    if (keys.some((k) => /^SUPABASE(?:_|$)/i.test(k) || /^(?:NEXT_PUBLIC_|VITE_)?SUPABASE_/i.test(k))) {
+      add('supabase', 'Supabase', `${envFile} declares a Supabase variable`)
+    }
+    if (keys.some((k) => /^GITHUB_/i.test(k))) add('github-env', 'GitHub credentials', `${envFile} declares a GITHUB_* variable`)
   }
 
   return { dir, signals, isProject: signals.length > 0, manifests: manifests.map((m) => m.rel) }

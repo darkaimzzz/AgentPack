@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs'
 import { capabilities } from '../capabilities/registry.ts'
 import { listRuntime, setState } from './state.ts'
-import type { AgentKey, CapabilityActivationTrigger, RuntimeMutationResult } from '../types.ts'
+import type { AgentKey, TriggerDefinition, TriggerEvent } from '../types.ts'
 
 /**
  * One automatic activation mechanism (PRD §12): a file-pattern trigger.
@@ -49,21 +49,6 @@ export function matchesAny(path: string, patterns: string[]): boolean {
   return patterns.some((pattern) => globToRegExp(pattern).test(p))
 }
 
-export type TriggerEvent = {
-  capabilityId: string
-  capabilityName: string
-  agent: AgentKey
-  pattern: string
-  path: string
-  result: RuntimeMutationResult
-}
-
-export type TriggerDefinition = {
-  capabilityId: string
-  capabilityName: string
-  triggers: CapabilityActivationTrigger[]
-}
-
 /** Every capability that declares a trigger, whatever its current state. */
 export function triggerDefinitions(): TriggerDefinition[] {
   return capabilities()
@@ -71,7 +56,7 @@ export function triggerDefinitions(): TriggerDefinition[] {
     .map((c) => ({ capabilityId: c.id, capabilityName: c.name, triggers: c.triggers! }))
 }
 
-export type WatchHandle = { stop: () => void; watching: string }
+export type WatchHandle = { stop: () => void; watching: string; readonly error?: string }
 
 /**
  * Start watching a project directory.
@@ -83,12 +68,13 @@ export type WatchHandle = { stop: () => void; watching: string }
 export function startWatching(
   projectDir: string,
   onFire: (e: TriggerEvent) => void,
-  opts: { agents?: AgentKey[]; debounceMs?: number } = {},
+  opts: { agents?: AgentKey[]; debounceMs?: number; onError?: (error: string) => void } = {},
 ): WatchHandle {
   const defs = triggerDefinitions()
   const recent = new Map<string, number>()
   const debounceMs = opts.debounceMs ?? 400
   let watcher: FSWatcher | null = null
+  let watchError: string | undefined
 
   const handle = (_event: string, filename: string | null) => {
     if (!filename) return
@@ -121,13 +107,25 @@ export function startWatching(
   }
 
   try {
-    watcher = watch(projectDir, { recursive: true }, handle)
+    watcher = watch(projectDir, { recursive: true }, (event, filename) => {
+      try { handle(event, filename) } catch {
+        watchError = 'Automatic activation failed. Check agent configuration and the dormant store.'
+        opts.onError?.(watchError)
+      }
+    })
+    watcher.on('error', () => {
+      watchError = 'Folder watch stopped unexpectedly. Select the folder again to retry.'
+      watcher?.close()
+      watcher = null
+      opts.onError?.(watchError)
+    })
   } catch (e) {
     throw new Error(`could not watch ${projectDir}: ${(e as Error).message}`)
   }
 
   return {
     watching: projectDir,
+    get error() { return watchError },
     stop: () => {
       watcher?.close()
       watcher = null

@@ -3,8 +3,11 @@ import { join } from 'node:path'
 import { adapters } from '../agents/index.ts'
 import { matchEntry, supportsType, type AgentAdapter } from '../agents/adapter.ts'
 import { getCapability, capabilities, resolveArgs } from '../capabilities/registry.ts'
-import { backup, restoreFile } from '../installer/backup.ts'
+import { backup, captureAfter, prepareRestore } from '../installer/backup.ts'
 import { stateDir, stamp } from '../paths.ts'
+import { atomicWrite } from '../files.ts'
+import { isDeepStrictEqual } from 'node:util'
+import { randomUUID } from 'node:crypto'
 import * as dormant from './dormant.ts'
 import type {
   AgentKey, Capability, CapabilityRuntimeState, RuntimeMutationResult,
@@ -45,10 +48,11 @@ export function log(): MutationLogEntry[] {
 }
 
 function appendLog(e: MutationLogEntry) {
-  mkdirSync(stateDir(), { recursive: true })
-  // Keep the tail bounded; this is a debugging aid, not an archive.
-  const all = [...log(), e].slice(-500)
-  writeFileSync(logPath(), JSON.stringify(all, null, 2) + '\n')
+  // Diagnostics must never undo a successfully restored credential entry.
+  try {
+    const all = [...log(), e].slice(-500)
+    atomicWrite(logPath(), JSON.stringify(all, null, 2) + '\n')
+  } catch { /* The live config and credential store remain authoritative. */ }
 }
 
 // --- validation --------------------------------------------------------------
@@ -88,6 +92,7 @@ export function runtimeState(capabilityId: string, agent: AgentKey): CapabilityR
   const adapter = adapters[agent]
   if (!supportsType(adapter, cap) || !cap.supportedAgents.includes(agent)) return 'unknown'
   try {
+    if (!validateConfig(adapter).ok) return 'unknown'
     if (cap.type === 'plugin') {
       const p = adapter.readPlugin?.(cap)
       if (p) return p.enabled ? 'active' : 'dormant'
@@ -171,7 +176,7 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
   const entry = adapter.read(resolved)
   if (!entry) return fail(capabilityId, agent, from, 'dormant', 'entry vanished between read and write', opts)
 
-  const token = backup(agent, adapter.configPath(), `clm-${stamp()}`)
+  const token = backup(agent, adapter.configPath(), `clm-${stamp()}-${randomUUID()}`)
   const native = typeof adapter.setEnabled === 'function'
   try {
     if (native) {
@@ -184,6 +189,7 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
       adapter.remove(resolved)
     }
 
+    captureAfter(token, `clm-after-${randomUUID()}`)
     const post = validateConfig(adapter)
     if (!post.ok) throw new Error(`config invalid after ${native ? 'disable' : 'removal'}: ${post.error}`)
     if (runtimeState(capabilityId, agent) !== 'dormant') {
@@ -196,7 +202,9 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
       changedFiles: [adapter.configPath()], backupPath: token.backupPath ?? undefined,
     }
   } catch (e) {
-    restoreFile(token)
+    try { prepareRestore(token)?.apply() } catch (rollbackError) {
+      return fail(capabilityId, agent, from, from, `Change failed; rollback needs attention: ${(rollbackError as Error).message}`, opts, token.backupPath ?? undefined)
+    }
     if (!native) dormant.drop(capabilityId, agent)
     return fail(capabilityId, agent, from, 'dormant', (e as Error).message, opts, token.backupPath ?? undefined)
   }
@@ -243,6 +251,7 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
     const t = backup(agent, adapter.configPath(), `clm-${stamp()}`)
     try {
       adapter.setEnabled(resolvedNative, true)
+      captureAfter(t, `clm-after-${randomUUID()}`)
       const v = validateConfig(adapter)
       if (!v.ok) throw new Error(`config invalid after enable: ${v.error}`)
       if (runtimeState(capabilityId, agent) !== 'active') throw new Error('capability is still dormant after enable')
@@ -252,7 +261,9 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
         changedFiles: [adapter.configPath()], backupPath: t.backupPath ?? undefined,
       }
     } catch (e) {
-      restoreFile(t)
+      try { prepareRestore(t)?.apply() } catch (rollbackError) {
+        return fail(capabilityId, agent, from, from, `Change failed; rollback needs attention: ${(rollbackError as Error).message}`, opts, t.backupPath ?? undefined)
+      }
       return fail(capabilityId, agent, from, 'active', (e as Error).message, opts, t.backupPath ?? undefined)
     }
   }
@@ -268,13 +279,18 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
       ...cap,
       install: { command: stashed.entry.command, args: stashed.entry.args },
     }
-    adapter.write(restoreCap, stashed.entry.env)
+    if (adapter.restoreEntry) adapter.restoreEntry(restoreCap, stashed.entry)
+    else adapter.write(restoreCap, stashed.entry.env)
+    captureAfter(token, `clm-after-${randomUUID()}`)
 
     const post = validateConfig(adapter)
     if (!post.ok) throw new Error(`config invalid after restore: ${post.error}`)
     const now = adapter.read(restoreCap)
     if (!now) throw new Error('entry missing after restore')
     if (now.command !== stashed.entry.command) throw new Error('restored entry does not match what was stashed')
+    if (stashed.entry.native && !isDeepStrictEqual(now.native, stashed.entry.native)) {
+      throw new Error('restored native entry does not match what was stashed')
+    }
 
     dormant.drop(capabilityId, agent)
     appendLog({ at: new Date().toISOString(), capabilityId, agent, from, to: 'active', success: true, source: opts.source ?? 'manual' })
@@ -283,7 +299,9 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
       changedFiles: [adapter.configPath()], backupPath: token.backupPath ?? undefined,
     }
   } catch (e) {
-    restoreFile(token)
+    try { prepareRestore(token)?.apply() } catch (rollbackError) {
+      return fail(capabilityId, agent, from, from, `Change failed; rollback needs attention: ${(rollbackError as Error).message}`, opts, token.backupPath ?? undefined)
+    }
     return fail(capabilityId, agent, from, 'active', (e as Error).message, opts, token.backupPath ?? undefined)
   }
 }

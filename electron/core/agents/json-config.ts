@@ -1,20 +1,46 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { atomicWrite } from '../files.ts'
 import { parse as parseJsonc, applyEdits, modify, type ParseError } from 'jsonc-parser'
 
 /** Strict JSON read. Used where the format really is plain JSON. */
 export function readJson<T = Record<string, unknown>>(path: string): T {
   const raw = readFileSync(path, 'utf8')
   try {
-    return JSON.parse(raw) as T
+    const value = JSON.parse(raw)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Expected an object')
+    for (const key of ['mcpServers', 'mcp', 'enabledPlugins', 'extraKnownMarketplaces']) {
+      if (value[key] !== undefined && (!value[key] || typeof value[key] !== 'object' || Array.isArray(value[key]))) throw new Error('Invalid config section')
+    }
+    return value as T
   } catch (e) {
-    throw new Error(`${path} is not valid JSON: ${(e as Error).message}`)
+    throw new Error(`${path} is not valid JSON`)
   }
 }
 
+/**
+ * Write JSON back, matching the file's existing formatting.
+ *
+ * The agent owns this file; we are a guest in it. Imposing our own indentation
+ * or trailing newline shows up as spurious churn in the user's diffs, and it
+ * was enough on its own to stop a rollback being byte-identical.
+ */
 export function writeJson(path: string, obj: unknown): void {
+  let indent: string | number = 2
+  let trailingNewline = true
+
+  try {
+    const existing = readFileSync(path, 'utf8')
+    // Indentation of the first nested line, if the file has one.
+    const m = existing.match(/^\{\r?\n([ \t]+)/)
+    if (m) indent = m[1].includes('\t') ? '\t' : m[1].length
+    trailingNewline = /\n$/.test(existing)
+  } catch {
+    // New file: our defaults are as good as any.
+  }
+
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, JSON.stringify(obj, null, 2) + '\n')
+  atomicWrite(path, JSON.stringify(obj, null, indent) + (trailingNewline ? '\n' : ''))
 }
 
 /**
@@ -26,7 +52,10 @@ export function readJsonc<T = Record<string, unknown>>(path: string): T {
   const errors: ParseError[] = []
   const value = parseJsonc(raw, errors, { allowTrailingComma: true }) as T
   if (errors.length) throw new Error(`${path} could not be parsed as JSONC (${errors.length} error(s))`)
-  return value ?? ({} as T)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(path + ' must contain a config object')
+  const doc = value as Record<string, unknown>
+  if (doc.mcp !== undefined && (!doc.mcp || typeof doc.mcp !== 'object' || Array.isArray(doc.mcp))) throw new Error(path + ' has an invalid MCP section')
+  return value
 }
 
 /**
@@ -38,11 +67,12 @@ export function editJsonc(path: string, jsonPath: Array<string | number>, value:
   let raw = ''
   try {
     raw = readFileSync(path, 'utf8')
-  } catch {
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
     raw = '{}\n'
   }
   const edits = modify(raw, jsonPath, value, {
     formattingOptions: { insertSpaces: true, tabSize: 2 },
   })
-  writeFileSync(path, applyEdits(raw, edits))
+  atomicWrite(path, applyEdits(raw, edits))
 }

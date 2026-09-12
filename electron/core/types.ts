@@ -145,6 +145,104 @@ export type BackupToken = {
   existed: boolean
   /** Hash of the file immediately after install, to detect later edits. */
   postHash?: string | null
+  /** Config snapshot immediately after our last write; kept with the backups. */
+  afterPath?: string
+}
+
+// --- project detection ------------------------------------------------------
+
+/** One thing we found in a project, with the evidence that proves it. */
+export type Signal = { id: string; label: string; evidence: string }
+
+export type ProjectScan = {
+  dir: string
+  signals: Signal[]
+  isProject: boolean
+  /** Every package.json read, relative to the scanned directory. */
+  manifests: string[]
+}
+
+export type Recommendation = { capability: Capability; reason: string; matched: Signal[] }
+
+/** What the UI receives for one scanned folder. */
+export type Analysis = {
+  scan: ProjectScan
+  recommendations: Recommendation[]
+  extras: Capability[]
+}
+
+// --- install reports --------------------------------------------------------
+
+export type CapabilityReport = {
+  capability: Capability
+  results: InstallResult[]
+  health: HealthResult
+}
+
+export type PreflightResult = {
+  ok: boolean
+  binaries: Array<{ name: string; found: boolean; version?: string }>
+  problems: string[]
+}
+
+export type InstallReport = {
+  id: string
+  capabilities: CapabilityReport[]
+  /** Pass this to rollback() to undo the whole run. */
+  ledgerId: string
+  preflight?: PreflightResult
+}
+
+// --- capability load manager ------------------------------------------------
+
+/** One row of the Capability Load Manager. */
+export type ClmRow = {
+  capability: Capability
+  agents: Array<{ agent: AgentKey; agentName: string; state: CapabilityRuntimeState }>
+  cost: CapabilityContextCost | null
+  anyActive: boolean
+  anyDormant: boolean
+  /** False for plugins: CLM manages MCP servers only. */
+  manageable: boolean
+}
+
+export type ClmSummary = {
+  installedCount: number
+  activeCount: number
+  activeTools: number
+  allTools: number
+  activeTokens: number
+  allTokens: number
+  unmeasurable: number
+}
+
+export type ClmView = {
+  rows: ClmRow[]
+  summary: ClmSummary
+  currentProfileId: string | null
+  reconciled: number
+}
+
+export type TriggerDefinition = {
+  capabilityId: string
+  capabilityName: string
+  triggers: CapabilityActivationTrigger[]
+}
+
+export type TriggerEvent = {
+  capabilityId: string
+  capabilityName: string
+  agent: AgentKey
+  pattern: string
+  path: string
+  result: RuntimeMutationResult
+}
+
+export type ProfileResult = {
+  profile: CapabilityProfile
+  results: RuntimeMutationResult[]
+  /** ok = everything applied; partial = some failed; failed = nothing applied. */
+  status: 'ok' | 'partial' | 'failed'
 }
 
 export type ProgressEvent =

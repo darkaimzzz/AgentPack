@@ -2,8 +2,13 @@ import { app, BrowserWindow, nativeTheme } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { registerHandlers } from './ipc/handlers.ts'
+import { createDemo } from './core/demo.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
+if (process.argv.includes('--demo')) {
+  const demo = createDemo()
+  app.setPath('userData', join(demo.home, 'electron'))
+}
 
 // In a packaged build the code lives inside app.asar, so walking up from the
 // module directory cannot find the registry. It ships as an extra resource
@@ -27,12 +32,14 @@ function createWindow() {
       // Everything privileged goes through a named IPC channel (CLAUDE.md §6).
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // preload needs require() for the electron module
+      sandbox: true,
     },
   })
 
   win.once('ready-to-show', () => win.show())
   registerHandlers(win)
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', event => event.preventDefault())
 
   const devUrl = process.env.ELECTRON_RENDERER_URL
   if (devUrl) win.loadURL(devUrl)
@@ -49,6 +56,7 @@ nativeTheme.themeSource = 'dark'
  * without a human having to look at a screen.
  */
 async function smokeTest(win: BrowserWindow) {
+  const timeout = setTimeout(() => { console.error('Smoke test timed out'); app.exit(1) }, 30_000)
   const errors: string[] = []
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) errors.push(message)
@@ -76,7 +84,7 @@ async function smokeTest(win: BrowserWindow) {
     const clmView = await api.clmView()
 
     return {
-      ok: true,
+      ok: Boolean(manage && clmHeading && clmView.rows && (await api.clmProfiles()).length),
       clm: {
         heading: clmHeading,
         rows: clmRows,
@@ -96,12 +104,13 @@ async function smokeTest(win: BrowserWindow) {
   })()`)
 
   console.log('SMOKE ' + JSON.stringify({ ...result, consoleErrors: errors }, null, 2))
+  clearTimeout(timeout)
   app.exit(result.ok && !errors.length ? 0 : 1)
 }
 
 app.whenReady().then(() => {
   const win = createWindow()
-  if (process.env.AGENTPACK_SMOKE) smokeTest(win)
+  if (process.env.AGENTPACK_SMOKE) smokeTest(win).catch(error => { console.error(error); app.exit(1) })
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

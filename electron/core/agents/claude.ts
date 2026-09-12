@@ -38,17 +38,31 @@ export const claude: AgentAdapter = {
     if (!existsSync(p)) return null
     const e = load(p).mcpServers?.[cap.id]
     if (!e) return null
-    return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {} }
+    if (typeof e !== 'object' || Array.isArray(e) ||
+      (e.command !== undefined && typeof e.command !== 'string') ||
+      (e.args !== undefined && (!Array.isArray(e.args) || e.args.some((a) => typeof a !== 'string')))) {
+      throw new Error(`Invalid MCP entry: ${cap.id}`)
+    }
+    return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {}, native: structuredClone(e) }
+  },
+
+  restoreEntry(cap, entry) {
+    if (!entry.native) { this.write(cap, entry.env); return }
+    const p = this.configPath()
+    const cfg = load(p)
+    cfg.mcpServers ??= {}
+    if (cfg.mcpServers[cap.id]) throw new Error(`Refusing to replace existing MCP entry: ${cap.id}`)
+    cfg.mcpServers[cap.id] = structuredClone(entry.native)
+    writeJson(p, cfg)
   },
 
   // Plugins live in ~/.claude/settings.json, verified against a real install:
   //   extraKnownMarketplaces: { <market>: { source: { source: "github", repo } } }
   //   enabledPlugins:         { "<plugin>@<market>": true }
-  settingsPath: () => join(home(), '.claude', 'settings.json'),
   pluginConfigPath: () => join(home(), '.claude', 'settings.json'),
 
   readPlugin(cap: Capability) {
-    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    const p = this.pluginConfigPath!()
     if (!existsSync(p)) return null
     const s = readJson<{ enabledPlugins?: Record<string, boolean> }>(p)
     const id = `${cap.plugin!.name}@${cap.plugin!.marketplace}`
@@ -57,7 +71,7 @@ export const claude: AgentAdapter = {
   },
 
   writePlugin(cap: Capability) {
-    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    const p = this.pluginConfigPath!()
     const s = existsSync(p)
       ? readJson<Record<string, unknown>>(p)
       : ({} as Record<string, unknown>)
@@ -71,7 +85,7 @@ export const claude: AgentAdapter = {
   },
 
   removePlugin(cap: Capability) {
-    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    const p = this.pluginConfigPath!()
     if (!existsSync(p)) return
     const s = readJson<Record<string, unknown>>(p)
     const enabled = (s.enabledPlugins ?? {}) as Record<string, boolean>

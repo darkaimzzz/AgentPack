@@ -7,15 +7,19 @@
   "scripts": {
     "check": "node electron/core/selfcheck.ts",
     "cli": "node electron/core/cli.ts",
-    "spike": "node spike/poc.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;const r=require('child_process').spawnSync(require('electron'),['out/main/main.js'],{stdio:'inherit',env:process.env});process.exit(r.status===null?1:r.status)\"",
+    "smoke": "electron-vite build && node -e \"process.env.AGENTPACK_SMOKE=1;const r=require('child_process').spawnSync(require('electron'),['out/main/main.js','--demo'],{stdio:'inherit',env:process.env});process.exit(r.status===null?1:r.status)\"",
     "rehearse": "node electron/core/rehearse.ts",
     "prewarm": "node electron/core/cli.ts prewarm",
     "typecheck": "tsc --noEmit",
-    "dist": "electron-vite build && electron-builder --win"
+    "dist": "electron-vite build && electron-builder --win",
+    "e2e": "node electron/core/e2e.ts",
+    "test": "node --test electron/core/detection/project.test.ts electron/core/hardening.test.ts electron/core/installer/process.test.ts electron/core/clm-regression.test.ts",
+    "demo": "electron-vite build && electron out/main/main.js --demo",
+    "test:ui": "node scripts/electron-e2e.mjs",
+    "test:tools": "node scripts/tool-calls.mjs"
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1",
@@ -60,11 +64,16 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "AgentPack-${version}-win-x64.exe"
     },
-    "forceCodeSigning": false
+    "forceCodeSigning": false,
+    "artifactName": "AgentPack-${version}-${os}-${arch}.${ext}"
+  },
+  "engines": {
+    "node": ">=22.17.0"
   }
 }

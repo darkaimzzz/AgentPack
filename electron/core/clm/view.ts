@@ -2,7 +2,9 @@ import { listRuntime, reconcile } from './state.ts'
 import { cachedCost, measureCost, totalCost } from './cost.ts'
 import { currentProfile } from './profiles.ts'
 import { adapters } from '../agents/index.ts'
-import type { AgentKey, Capability, CapabilityContextCost, CapabilityRuntimeState } from '../types.ts'
+import * as dormant from './dormant.ts'
+import type { Capability } from '../types.ts'
+import type { AgentKey, ClmRow, ClmView } from '../types.ts'
 
 /**
  * Build everything the CLM screen needs in one call.
@@ -12,29 +14,13 @@ import type { AgentKey, Capability, CapabilityContextCost, CapabilityRuntimeStat
  * config happens before anything is displayed (PRD §15).
  */
 
-export type ClmRow = {
-  capability: Capability
-  agents: Array<{ agent: AgentKey; agentName: string; state: CapabilityRuntimeState }>
-  cost: CapabilityContextCost | null
-  anyActive: boolean
-  anyDormant: boolean
-  /** False for plugins: CLM manages MCP servers only. */
-  manageable: boolean
-}
 
-export type ClmView = {
-  rows: ClmRow[]
-  summary: {
-    installedCount: number
-    activeCount: number
-    activeTools: number
-    allTools: number
-    activeTokens: number
-    allTokens: number
-    unmeasurable: number
+function measurementEntry(capability: Capability, agents: AgentKey[]) {
+  for (const agent of agents) {
+    const entry = adapters[agent].read(capability) ?? dormant.get(capability.id, agent)?.entry
+    if (entry?.command) return { capability: { ...capability, install: { command: entry.command, args: entry.args } }, env: entry.env }
   }
-  currentProfileId: string | null
-  reconciled: number
+  return null
 }
 
 export function clmView(agents?: AgentKey[]): ClmView {
@@ -53,7 +39,7 @@ export function clmView(agents?: AgentKey[]): ClmView {
     rows.push({
       capability,
       agents: recs.map((r) => ({ agent: r.agent, agentName: adapters[r.agent].name, state: r.state })),
-      cost: cachedCost(capability),
+      cost: capability.type === 'mcp' ? (() => { const entry = measurementEntry(capability, recs.filter((r) => r.state !== 'unknown').map((r) => r.agent)); return entry ? cachedCost(entry.capability) : null })() : cachedCost(capability),
       anyActive: recs.some((r) => r.state === 'active'),
       anyDormant: recs.some((r) => r.state === 'dormant'),
       manageable: capability.type === 'mcp',
@@ -64,7 +50,7 @@ export function clmView(agents?: AgentKey[]): ClmView {
   // Cost is per capability, not per agent: the same server loaded into two
   // agents costs each of them that much, but the figure we show is the schema
   // size, which does not change.
-  const withCost = rows.filter((r) => r.cost)
+  const withCost = rows.filter((r) => r.cost && (r.anyActive || r.anyDormant))
   const all = totalCost(withCost.map((r) => r.cost!))
   const active = totalCost(withCost.filter((r) => r.anyActive).map((r) => r.cost!))
 
@@ -85,12 +71,14 @@ export function clmView(agents?: AgentKey[]): ClmView {
 }
 
 /** Measure anything not yet cached. Slow (~4s per server), so it is explicit. */
-export async function measureAll(projectDir: string): Promise<number> {
+export async function measureAll(projectDir: string, force = false): Promise<number> {
   const rows = clmView().rows
   let measured = 0
   for (const row of rows) {
-    if (row.cost) continue
-    await measureCost(row.capability, { projectDir })
+    if ((!row.anyActive && !row.anyDormant) || row.capability.type !== 'mcp' || (!force && row.cost?.source === 'measured')) continue
+    const entry = measurementEntry(row.capability, row.agents.filter((a) => a.state !== 'unknown').map((a) => a.agent))
+    if (!entry) continue
+    await measureCost(entry.capability, { projectDir, secrets: entry.env, force })
     measured++
   }
   return measured

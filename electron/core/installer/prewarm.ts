@@ -1,14 +1,10 @@
-import { capabilities } from '../capabilities/registry.ts'
+import { getCapability, resolveArgs } from '../capabilities/registry.ts'
+import { statSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { probe } from './health.ts'
 import type { Capability } from '../types.ts'
 
-/**
- * Download and start every registry capability once, so the npx cache is warm.
- *
- * This is the single biggest live-demo risk: a cold `npx -y <pkg>` fetches from
- * the network, turning a 4-second validate into a minute or a timeout on venue
- * wi-fi. Run this before the demo, on the demo machine, on a good connection.
- */
+/** Warm the credential-free demo servers against a real project directory. */
 export type PrewarmResult = {
   capability: Capability
   ok: boolean
@@ -20,27 +16,30 @@ export type PrewarmResult = {
 export async function prewarm(
   ids?: string[],
   onEach?: (r: PrewarmResult) => void,
+  projectDir = process.cwd(),
 ): Promise<PrewarmResult[]> {
-  // Plugins have nothing to download ahead of time.
-  const caps = capabilities().filter((c) => c.install && (!ids?.length || ids.includes(c.id)))
+  const dir = resolve(projectDir)
+  if (!statSync(dir).isDirectory()) throw new Error('Prewarm project path must be a directory: ' + dir)
+  const selected = ids?.length ? ids : ['playwright', 'filesystem', 'sequential-thinking']
+  // Validate all requests before starting any process or download.
+  const plans = [...new Set(selected)].map((id) => {
+    const capability = getCapability(id)
+    if (!capability.install) throw new Error('Prewarm requires a stdio MCP capability: ' + id)
+    const keys = [...(capability.inputs ?? []), ...(capability.secrets ?? [])].map((field) => field.key)
+    const missing = keys.filter((key) => !process.env[key]?.trim())
+    if (missing.length) throw new Error(`${id} requires real environment values for: ${missing.join(', ')}`)
+    const env = Object.fromEntries((capability.secrets ?? []).map(({ key }) => [key, process.env[key]!]))
+    const values = Object.fromEntries((capability.inputs ?? []).map(({ key }) => [key, process.env[key]!]))
+    const args = resolveArgs(capability, { projectDir: dir, values })
+    if (args.some((arg) => /\$\{\w+\}/.test(arg))) throw new Error('Unresolved prewarm inputs for ' + id)
+    return { capability, args, env }
+  })
   const out: PrewarmResult[] = []
-
-  for (const capability of caps) {
-    // Placeholders are irrelevant here — we only need the package downloaded and
-    // the server to start. A bad project-ref still exercises the network path.
-    const args = capability.install!.args.map((a) => a.replace(/\$\{(\w+)\}/g, 'prewarm'))
-    const env = Object.fromEntries((capability.secrets ?? []).map((s) => [s.key, 'prewarm-placeholder']))
-    const r = await probe({ command: capability.install!.command, args, env, timeoutMs: 300_000 })
-    const result: PrewarmResult = {
-      capability,
-      ok: r.reachable,
-      tools: r.tools.length,
-      durationMs: r.durationMs,
-      error: r.error,
-    }
+  for (const { capability, args, env } of plans) {
+    const r = await probe({ command: capability.install!.command, args, env, secretValues: Object.values(env), timeoutMs: 300_000 })
+    const result: PrewarmResult = { capability, ok: r.reachable, tools: r.tools.length, durationMs: r.durationMs, error: r.error }
     out.push(result)
     onEach?.(result)
   }
-
   return out
 }

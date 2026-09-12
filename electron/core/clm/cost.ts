@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 import { stateDir } from '../paths.ts'
+import { atomicWrite } from '../files.ts'
 import { probe } from '../installer/health.ts'
 import { resolveArgs } from '../capabilities/registry.ts'
 import type { Capability, CapabilityContextCost, ToolDefinition } from '../types.ts'
@@ -64,13 +66,13 @@ const readCache = (): Cache => {
 
 const writeCache = (c: Cache) => {
   mkdirSync(stateDir(), { recursive: true })
-  writeFileSync(costPath(), JSON.stringify(c, null, 2) + '\n')
+  atomicWrite(costPath(), JSON.stringify(c, null, 2) + '\n')
 }
 
 const cacheKey = (cap: Capability) =>
   cap.type === 'plugin'
     ? `plugin:${cap.id}`
-    : `${cap.id}:${cap.install!.command} ${cap.install!.args.join(' ')}`
+    : createHash('sha256').update(JSON.stringify([cap.id, cap.install?.command, cap.install?.args])).digest('hex')
 
 export const cachedCost = (cap: Capability): CapabilityContextCost | null =>
   readCache()[cacheKey(cap)] ?? null
@@ -88,29 +90,28 @@ export async function measureCost(
 ): Promise<CapabilityContextCost> {
   const key = cacheKey(cap)
   const cache = readCache()
-  if (!opts.force && cache[key]) return cache[key]
+  if (!opts.force && cache[key]?.source === 'measured') return cache[key]
 
   if (cap.type === 'plugin' || !cap.install) {
     const cost = unavailableCost('plugins load inside the agent; their context cost is not measurable from here')
     cache[key] = cost
-    writeCache(cache)
+    writeCache({ ...readCache(), [key]: cost })
     return cost
   }
 
   const args = resolveArgs(cap, { projectDir: opts.projectDir ?? process.cwd(), values: opts.inputs })
-  // A placeholder credential is enough: tools/list answers before most servers
-  // ever check auth, and we only need the schema shapes.
-  const env = Object.fromEntries(
+  // Use installed credentials when available; placeholder probes may be rejected.
+  const env = { ...opts.secrets, ...Object.fromEntries(
     (cap.secrets ?? []).map((s) => [s.key, opts.secrets?.[s.key] ?? 'agentpack-cost-probe']),
-  )
+  ) }
 
-  const r = await probe({ command: cap.install.command, args, env, timeoutMs: 180_000 })
+  const r = await probe({ command: cap.install.command, args, env, secretValues: Object.values(env), timeoutMs: 180_000 })
   const cost = r.reachable
     ? estimateCost(r.toolDefinitions)
     : unavailableCost(`could not start the server: ${r.error ?? 'unknown error'}`)
 
   cache[key] = cost
-  writeCache(cache)
+  writeCache({ ...readCache(), [key]: cost })
   return cost
 }
 

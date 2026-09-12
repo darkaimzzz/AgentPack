@@ -1,0 +1,6 @@
+{
+  "id": "local",
+  "name": "Local Developer",
+  "description": "Browser automation, project files and a reasoning scratchpad. No API keys required.",
+  "capabilities": ["playwright", "filesystem", "sequential-thinking"]
+}

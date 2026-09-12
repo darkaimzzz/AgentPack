@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { resolveCommand, redact } from './run.ts'
+import { resolveCommand, redact, stopProcess } from './run.ts'
 import type { ToolDefinition } from '../types.ts'
 
 /**
@@ -27,7 +27,7 @@ const PROTOCOL = '2024-11-05' // widest server support; capable servers negotiat
  * we wrote a file; this proves the capability actually works (CLAUDE.md §16).
  * Raw JSON-RPC on purpose — no SDK dependency for ~80 lines.
  */
-export function probe(opts: {
+export async function probe(opts: {
   command: string
   args?: string[]
   env?: Record<string, string>
@@ -35,7 +35,10 @@ export function probe(opts: {
   secretValues?: string[]
 }): Promise<ProbeResult> {
   const { command, args = [], env = {}, timeoutMs = 120_000, secretValues = [] } = opts
-  const { file, args: spawnArgs, shell } = resolveCommand(command, args)
+  let resolved: ReturnType<typeof resolveCommand>
+  try { resolved = resolveCommand(command, args) }
+  catch (error) { return {reachable:false, tools:[], toolDefinitions:[], durationMs:0, error:redact((error as Error).message,secretValues)} }
+  const { file, args: spawnArgs, shell } = resolved
   const started = Date.now()
 
   return new Promise((resolve) => {
@@ -55,7 +58,7 @@ export function probe(opts: {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      child.kill()
+      stopProcess(child)
       resolve(r)
     }
 
@@ -68,6 +71,7 @@ export function probe(opts: {
 
     child.stdout.on('data', (chunk) => {
       buf += chunk
+      if(buf.length>2_000_000){failAll('Server response exceeds 2 MB');return}
       let nl: number
       // NDJSON: one JSON-RPC message per line.
       while ((nl = buf.indexOf('\n')) !== -1) {
@@ -91,19 +95,22 @@ export function probe(opts: {
     })
 
     child.stderr.on('data', (c) => {
-      stderr += c
+      stderr = (stderr + c).slice(-16_000)
     })
 
     let nextId = 1
     const send = (method: string, params: unknown) => {
       const id = nextId++
-      child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
-      return new Promise<any>((ok, fail) => pending.set(id, { ok, fail }))
+      return new Promise<any>((ok, fail) => {
+        pending.set(id, { ok, fail })
+        child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
+      })
     }
 
     const timer = setTimeout(() => failAll(`timed out after ${timeoutMs}ms`), timeoutMs)
     child.on('error', (e) => failAll(`spawn failed: ${e.message}`))
     child.on('exit', (code) => failAll(`server exited early (code ${code})`))
+    child.stdin.on('error',e=>failAll(`Server input closed: ${e.message}`))
 
     ;(async () => {
       try {
@@ -113,8 +120,17 @@ export function probe(opts: {
           clientInfo: { name: 'agentpack', version: '0.1.0' },
         })
         child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }) + '\n')
-        const res = await send('tools/list', {})
-        const defs: ToolDefinition[] = res?.tools ?? []
+        const defs: ToolDefinition[] = []
+        let cursor: string | undefined
+        const seen=new Set<string>()
+        do {
+          const res=await send('tools/list',cursor?{cursor}:{})
+          if(!Array.isArray(res?.tools) || res.tools.some((t:ToolDefinition)=>!t || typeof t.name!=='string' || !t.inputSchema)) throw new Error('Server returned an invalid tool list')
+          defs.push(...res.tools)
+          cursor=res.nextCursor
+          if(cursor && (typeof cursor!=='string' || seen.has(cursor) || seen.size>=100)) throw new Error('Invalid tool-list pagination')
+          if(cursor)seen.add(cursor)
+        } while(cursor)
         finish({
           reachable: true,
           tools: defs.map((t) => t.name),

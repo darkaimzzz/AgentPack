@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { stateDir } from '../paths.ts'
+import { atomicWrite } from '../files.ts'
 import type { AgentKey } from '../types.ts'
 import type { ConfigEntry } from '../agents/adapter.ts'
 
@@ -38,17 +39,19 @@ const read = (): Store => {
   if (!existsSync(p)) return { version: 1, entries: [] }
   try {
     const s = JSON.parse(readFileSync(p, 'utf8')) as Store
-    return Array.isArray(s.entries) ? s : { version: 1, entries: [] }
+    if (s.version !== 1 || !Array.isArray(s.entries) || s.entries.some((e) =>
+      !e || typeof e.capabilityId !== 'string' || !['claude', 'codex', 'opencode'].includes(e.agent) ||
+      !e.entry || typeof e.entry.command !== 'string' || !Array.isArray(e.entry.args) ||
+      !e.entry.env || typeof e.entry.env !== 'object')) throw new Error('invalid schema')
+    return s
   } catch {
-    // Never throw here: a corrupt store must not block reading the live config,
-    // which is the source of truth anyway.
-    return { version: 1, entries: [] }
+    throw new Error('Dormant credential store is unreadable. Restore its backup before making changes: ' + p)
   }
 }
 
 const write = (s: Store) => {
   mkdirSync(stateDir(), { recursive: true })
-  writeFileSync(dormantPath(), JSON.stringify(s, null, 2) + '\n')
+  atomicWrite(dormantPath(), JSON.stringify(s, null, 2) + '\n')
 }
 
 export const entries = (): DormantRecord[] => read().entries

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { registryRoot } from '../capabilities/registry.ts'
 import { listRuntime, setState, validateConfig } from './state.ts'
 import { adapters } from '../agents/index.ts'
-import type { AgentKey, CapabilityProfile, RuntimeMutationResult } from '../types.ts'
+import type { AgentKey, CapabilityProfile, ProfileResult, RuntimeMutationResult } from '../types.ts'
 
 /**
  * Profiles (PRD §11): a named set of capabilities that should be active.
@@ -91,13 +91,6 @@ export function planProfile(profileId: string, agents?: AgentKey[]): ProfilePlan
   return plan
 }
 
-export type ProfileResult = {
-  profile: CapabilityProfile
-  results: RuntimeMutationResult[]
-  /** ok = everything applied; partial = some failed; failed = nothing applied. */
-  status: 'ok' | 'partial' | 'failed'
-}
-
 /**
  * Apply a profile.
  *
@@ -127,6 +120,10 @@ export function applyProfile(profileId: string, agents?: AgentKey[]): ProfileRes
     })
   }
 
+  for (const { capabilityId, agent } of plan.unavailable) {
+    results.push({ success: false, capabilityId, agent, from: 'unknown', to: 'unknown',
+      changedFiles: [], error: 'Required by this profile but not installed; install it first.' })
+  }
   const failed = results.filter((r) => !r.success)
   return {
     profile: plan.profile,
@@ -141,19 +138,12 @@ export function applyProfile(profileId: string, agents?: AgentKey[]): ProfileRes
  */
 export function currentProfile(agents?: AgentKey[]): CapabilityProfile | null {
   const records = listRuntime(agents).filter((r) => r.capability.type === 'mcp')
-  const active = new Set(records.filter((r) => r.state === 'active').map((r) => r.capability.id))
-  const manageable = new Set(
-    records.filter((r) => r.state !== 'unknown').map((r) => r.capability.id),
-  )
-
-  // With nothing installed, every profile would trivially match the empty set
-  // and we would claim a profile is selected when none is.
-  if (!manageable.size) return null
-
+  if (!records.some((r) => r.state !== 'unknown')) return null
+  if (records.some((r) => !validateConfig(adapters[r.agent]).ok)) return null
   return profiles().find((p) => {
-    const want = new Set(p.activeCapabilityIds.filter((id) => manageable.has(id)))
-    if (want.size !== active.size) return false
-    for (const id of want) if (!active.has(id)) return false
-    return true
+    const want = new Set(p.activeCapabilityIds)
+    return records.every((r) => want.has(r.capability.id)
+      ? r.state === 'active'
+      : r.state !== 'active')
   }) ?? null
 }

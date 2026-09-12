@@ -1,6 +1,7 @@
 import { capabilities } from '../capabilities/registry.ts'
 import { FRONTEND_SIGNALS, type ProjectScan, type Signal } from '../detection/project.ts'
-import type { Capability } from '../types.ts'
+import type { Capability, Recommendation } from '../types.ts'
+export type { Recommendation }
 
 /**
  * Deterministic rules: signal -> capability (CLAUDE.md §11).
@@ -48,12 +49,6 @@ export const RULES: Rule[] = [
   },
 ]
 
-export type Recommendation = {
-  capability: Capability
-  reason: string
-  /** The signals that triggered it, for the "why?" disclosure. */
-  matched: Signal[]
-}
 
 export function recommend(scan: ProjectScan): Recommendation[] {
   const known = new Map(capabilities().map((c) => [c.id, c]))

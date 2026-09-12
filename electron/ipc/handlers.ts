@@ -1,6 +1,7 @@
-import { ipcMain, dialog, shell, type BrowserWindow } from 'electron'
-import { detectAgents } from '../core/agents/index.ts'
-import { capabilities, packs } from '../core/capabilities/registry.ts'
+import { ipcMain, dialog, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { statSync } from 'node:fs'
+import { detectAgents, adapters } from '../core/agents/index.ts'
+import { capabilities, packs, getCapability } from '../core/capabilities/registry.ts'
 import { scanProject } from '../core/detection/project.ts'
 import { recommend, alsoAvailable } from '../core/recommendations/rules.ts'
 import { install, rollback, type InstallRequest } from '../core/installer/install.ts'
@@ -10,67 +11,73 @@ import { profiles, applyProfile, planProfile } from '../core/clm/profiles.ts'
 import { startWatching, triggerDefinitions, type WatchHandle } from '../core/clm/trigger.ts'
 import type { AgentKey, ProgressEvent } from '../core/types.ts'
 
-/**
- * Every privileged operation lives here, behind a named channel (CLAUDE.md §6).
- * The renderer cannot execute a command — it can only ask for one of these.
- */
 export function registerHandlers(win: BrowserWindow) {
-  // One watcher at a time. Kept in main so the renderer cannot hold a handle
-  // to a filesystem watcher.
   let watcher: WatchHandle | null = null
-  ipcMain.handle('agents:detect', () => detectAgents())
-
-  ipcMain.handle('registry:list', () => ({ capabilities: capabilities(), packs: packs() }))
-
-  ipcMain.handle('project:analyze', (_e, dir: string) => {
-    const scan = scanProject(dir)
+  let watchError: string | undefined
+  let busy = false
+  const channels: string[] = []
+  const handle = (channel: string, fn: (...args: any[]) => unknown) => {
+    channels.push(channel)
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+      if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Untrusted IPC sender')
+      return fn(...args)
+    })
+  }
+  const watchStatus = () => watcher ? { watching: watcher.watching } : watchError ? { watching: '', error: watchError } : null
+  const notifyWatch = () => { if (!win.isDestroyed()) win.webContents.send('clm:watchChanged', watchStatus()) }
+  const stopWatch = () => { watcher?.stop(); watcher = null; watchError = undefined; notifyWatch() }
+  const mutate = async <T>(fn: () => T | Promise<T>): Promise<T> => {
+    if (busy) throw new Error('Another operation is running. Wait for it to finish.')
+    busy = true
+    stopWatch()
+    try { return await fn() } finally { busy = false }
+  }
+  const directory = (path: unknown): string => {
+    if (typeof path !== 'string' || !statSync(path).isDirectory()) throw new Error('Select an existing project folder')
+    return path
+  }
+  handle('app:info', () => ({ demo: process.env.AGENTPACK_DEMO === '1', projectDir: process.env.AGENTPACK_DEMO_PROJECT ?? null }))
+  handle('agents:detect', () => detectAgents())
+  handle('registry:list', () => ({ capabilities: capabilities(), packs: packs() }))
+  handle('project:analyze', (dir: string) => {
+    const scan = scanProject(directory(dir))
     const recommendations = recommend(scan)
     return { scan, recommendations, extras: alsoAvailable(recommendations) }
   })
-
-  ipcMain.handle('project:pick', async () => {
-    const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
+  handle('project:pick', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'], defaultPath: process.env.AGENTPACK_DEMO_PROJECT })
     return r.canceled ? null : r.filePaths[0]
   })
-
-  ipcMain.handle('install:run', async (_e, req: Omit<InstallRequest, 'onProgress'>) => {
+  handle('install:run', (req: Omit<InstallRequest, 'onProgress'>) => mutate(() => {
     const onProgress = (event: ProgressEvent) => {
       if (!win.isDestroyed()) win.webContents.send('install:progress', event)
     }
     return install({ ...req, onProgress })
-  })
-
-  ipcMain.handle('install:rollback', (_e, ledgerId?: string) => rollback(ledgerId))
-
-  ipcMain.handle('shell:reveal', (_e, path: string) => shell.showItemInFolder(path))
-
-  // --- Capability Load Manager -------------------------------------------
-  // Structured data only. The renderer can ask for a state change by name; it
-  // cannot execute anything (PRD §13).
-  ipcMain.handle('clm:view', () => clmView())
-  ipcMain.handle('clm:profiles', () => profiles())
-  ipcMain.handle('clm:plan', (_e, profileId: string) => planProfile(profileId))
-  ipcMain.handle('clm:applyProfile', (_e, profileId: string) => applyProfile(profileId))
-  ipcMain.handle('clm:measure', (_e, projectDir?: string) => measureAll(projectDir ?? process.cwd()))
-  ipcMain.handle('clm:log', () => mutationLog().slice(-100))
-  ipcMain.handle('clm:triggers', () => triggerDefinitions())
-  ipcMain.handle('clm:watchStatus', () => (watcher ? { watching: watcher.watching } : null))
-  ipcMain.handle('clm:stopWatch', () => {
-    watcher?.stop()
-    watcher = null
-    return null
-  })
-  ipcMain.handle('clm:startWatch', (_e, projectDir: string) => {
-    watcher?.stop()
-    watcher = startWatching(projectDir, (event) => {
+  }))
+  handle('install:rollback', (id?: string) => mutate(() => rollback(id)))
+  handle('shell:reveal', (path: string) => { if (typeof path !== 'string') throw new Error('Invalid path'); shell.showItemInFolder(path) })
+  handle('clm:view', () => clmView())
+  handle('clm:profiles', () => profiles())
+  handle('clm:plan', (id: string) => planProfile(id))
+  handle('clm:applyProfile', (id: string) => mutate(() => applyProfile(id)))
+  handle('clm:measure', (dir?: string) => mutate(() => measureAll(directory(dir ?? process.cwd()))))
+  handle('clm:log', () => mutationLog().slice(-100))
+  handle('clm:triggers', () => triggerDefinitions())
+  handle('clm:watchStatus', watchStatus)
+  handle('clm:stopWatch', () => { stopWatch(); return null })
+  handle('clm:startWatch', (dir: string) => {
+    if (busy) throw new Error('Wait for the current operation to finish before watching a folder.')
+    directory(dir)
+    stopWatch()
+    watcher = startWatching(dir, event => {
       if (!win.isDestroyed()) win.webContents.send('clm:trigger', event)
-    })
+    }, { onError: error => { watchError = error; watcher = null; notifyWatch() } })
     return { watching: watcher.watching }
   })
-
-  ipcMain.handle(
-    'clm:setState',
-    (_e, req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }) =>
-      setState(req.capabilityId, req.agent, req.state, { source: 'manual' }),
-  )
+  handle('clm:setState', (req: { capabilityId: string; agent: AgentKey; state: 'active' | 'dormant' }) => mutate(() => {
+    if (!req || !Object.hasOwn(adapters, req.agent) || !['active','dormant'].includes(req.state)) throw new Error('Invalid state change')
+    getCapability(req.capabilityId)
+    return setState(req.capabilityId, req.agent, req.state, { source: 'manual' })
+  }))
+  win.once('closed', () => { stopWatch(); for (const channel of channels) ipcMain.removeHandler(channel) })
 }

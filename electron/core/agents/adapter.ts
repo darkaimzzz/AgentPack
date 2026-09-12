@@ -6,6 +6,8 @@ export type ConfigEntry = {
   args: string[]
   env: Record<string, string>
   enabled?: boolean
+  /** Full native entry for lossless dormancy restoration. Never sent to renderer. */
+  native?: Record<string, unknown>
 }
 
 /**
@@ -31,6 +33,7 @@ export type AgentAdapter = {
   read(cap: Capability): ConfigEntry | null
   /** Write the capability in this agent's native format. */
   write(cap: Capability, env: Record<string, string>): void
+  restoreEntry?(cap: Capability, entry: ConfigEntry): void
   /** Remove the capability's entry, leaving everything else untouched. */
   remove(cap: Capability): void
   /** True when the config holds no capability entries at all. */

@@ -1,16 +1,12 @@
 import { run } from './run.ts'
-import type { Capability } from '../types.ts'
+import type { Capability, PreflightResult } from '../types.ts'
+export type { PreflightResult }
 
 /**
  * Step 1 of the install sequence (CLAUDE.md §12): check what a capability needs
  * before touching anything. A missing runtime should be one clear sentence up
  * front, not a cryptic spawn failure three stages in.
  */
-export type PreflightResult = {
-  ok: boolean
-  binaries: Array<{ name: string; found: boolean; version?: string }>
-  problems: string[]
-}
 
 const versionCache = new Map<string, { found: boolean; version?: string }>()
 

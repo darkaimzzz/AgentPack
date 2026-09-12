@@ -3,6 +3,7 @@ import { getCapability, capabilities } from './registry.ts'
 import { adapters } from '../agents/index.ts'
 import { entries as ledgerEntries } from '../installer/ledger.ts'
 import type { AgentKey, Capability } from '../types.ts'
+import { atomicWrite } from '../files.ts'
 
 /**
  * Export what is installed as a reusable manifest, and read one back
@@ -75,8 +76,9 @@ function recoverInputs(caps: Capability[]): Record<string, string> {
   }
 
   // Ledger fallback for anything the configs did not yield.
-  for (const entry of ledgerEntries().filter((e) => !e.rolledBackAt)) {
-    for (const [k, v] of Object.entries(entry.inputs ?? {})) recovered[k] ??= v
+  const allowed = new Set(caps.flatMap(c=>(c.inputs??[]).map(i=>i.key)))
+  for (const entry of ledgerEntries().filter((e) => !e.rolledBackAt).reverse()) {
+    for (const [k, v] of Object.entries(entry.inputs ?? {})) if(allowed.has(k)) recovered[k] ??= v
   }
 
   return recovered
@@ -87,12 +89,13 @@ export function buildManifest(opts: {
   capabilityIds?: string[]
   targets?: AgentKey[]
   inputs?: Record<string, string>
-}): Manifest {
+} = {}): Manifest {
   const live = installedCapabilities()
   const ids = opts.capabilityIds ?? live.map((x) => x.capability.id)
   const caps = ids.map(getCapability)
   const requiredSecrets = [...new Set(caps.flatMap((c) => (c.secrets ?? []).map((s) => s.key)))]
-  const inputs = { ...recoverInputs(caps), ...opts.inputs }
+  const values = { ...recoverInputs(caps), ...opts.inputs }
+  const inputs = Object.fromEntries(caps.flatMap(c=>(c.inputs??[]).map(i=>i.key)).filter(k=>typeof values[k]==='string').map(k=>[k,values[k]]))
 
   return {
     agentpack: 1,
@@ -106,17 +109,24 @@ export function buildManifest(opts: {
 }
 
 export function exportManifest(path: string, manifest: Manifest): void {
-  writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n')
+  atomicWrite(path, JSON.stringify(manifest, null, 2) + '\n')
 }
 
 export function readManifest(path: string): Manifest {
   const m = JSON.parse(readFileSync(path, 'utf8')) as Manifest
+  if (!m || typeof m !== 'object') throw new Error('Invalid manifest')
   if (m.agentpack !== 1) throw new Error(`unsupported manifest version: ${m.agentpack}`)
   if (!Array.isArray(m.capabilities) || !m.capabilities.length) throw new Error('manifest lists no capabilities')
   // Fail on import, not halfway through installing.
   const unknown = m.capabilities.filter((id) => !capabilities().some((c) => c.id === id))
   if (unknown.length) throw new Error(`manifest references unknown capabilities: ${unknown.join(', ')}`)
-  return m
+  if (!Array.isArray(m.targets) || !m.targets.length || m.targets.some(k=>!Object.hasOwn(adapters,k))) throw new Error('Manifest must specify valid target agents')
+  if (m.inputs && (typeof m.inputs!=='object' || Array.isArray(m.inputs) || Object.values(m.inputs).some(v=>typeof v!=='string'))) throw new Error('Manifest inputs must be strings')
+  const caps=m.capabilities.map(getCapability)
+  const allowed=new Set(caps.flatMap(c=>(c.inputs??[]).map(i=>i.key)))
+  return {...m,capabilities:[...new Set(m.capabilities)],targets:[...new Set(m.targets)],
+    inputs:Object.fromEntries(Object.entries(m.inputs??{}).filter(([k])=>allowed.has(k))),
+    requiredSecrets:[...new Set(caps.flatMap(c=>(c.secrets??[]).map(s=>s.key)))]}
 }
 
 /** Secret names an importer still needs to supply. */

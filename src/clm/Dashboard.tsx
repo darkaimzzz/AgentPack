@@ -25,7 +25,7 @@ export default function Dashboard() {
       const [v, p] = await Promise.all([window.agentpack.clmView(), window.agentpack.clmProfiles()])
       setView(v)
       setProfiles(p)
-      setUi((s) => (s === 'partial_failure' ? s : 'ready'))
+      setUi((s) => (s === 'loading' ? 'ready' : s))
     } catch (e) {
       setMessage(`Could not read capability state: ${(e as Error).message}`)
       setUi('error')
@@ -33,7 +33,11 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
-  useEffect(() => { window.agentpack.clmWatchStatus().then((s) => setWatching(s?.watching ?? null)) }, [])
+  useEffect(() => window.agentpack.onWatchChanged(status => {
+    setWatching(status?.watching || null)
+    if (status?.error) { setMessage(status.error); setUi('error') }
+  }), [])
+  useEffect(() => { window.agentpack.clmWatchStatus().then((s) => setWatching(s?.watching ?? null)).catch((e) => { setMessage(`Could not read watch status: ${(e as Error).message}`); setUi('error') }) }, [])
 
   // A trigger fires in main; the UI reacts rather than polling.
   useEffect(() => window.agentpack.onTrigger((e) => {
@@ -59,6 +63,7 @@ export default function Dashboard() {
   }
 
   async function toggle(row: ClmRow, agent: AgentKey, to: 'active' | 'dormant') {
+    if (busyId) return
     setBusyId(`${row.capability.id}:${agent}`)
     setUi('mutating')
     setMessage(null)
@@ -80,6 +85,7 @@ export default function Dashboard() {
   }
 
   async function useProfile(id: string) {
+    if (busyId) return
     setUi('mutating')
     setMessage(null)
     setBusyId(`profile:${id}`)
@@ -109,6 +115,7 @@ export default function Dashboard() {
     setMessage(null)
     try {
       await window.agentpack.clmMeasure()
+      setUi('ready')
       await refresh()
     } catch (e) {
       setMessage(`Measuring failed: ${(e as Error).message}`)
@@ -123,23 +130,25 @@ export default function Dashboard() {
       <div className="wrap">
         <h2>Capability Load Manager</h2>
         <p className="sub">{ui === 'error' ? message : 'Reading your agent configuration…'}</p>
+        {ui === 'error' && <button className="btn" onClick={() => { setUi('loading'); setMessage(null); refresh() }}>Retry</button>}
       </div>
     )
   }
 
   const { summary } = view
   const pct = summary.allTokens > 0 ? Math.round((1 - summary.activeTokens / summary.allTokens) * 100) : 0
-  const unmeasured = view.rows.filter((r) => !r.cost).length
+  const unmeasured = view.rows.filter((r) => r.manageable && (r.anyActive || r.anyDormant) && r.cost?.source !== 'measured').length
 
   return (
     <div className="wrap">
       <h2>Capability Load Manager</h2>
-      <p className="sub">Installed doesn't have to mean loaded. Dormant capabilities stay on your machine but leave the agent's context.</p>
+      <p className="sub">Choose which installed capabilities are available in the next agent session. Dormant capabilities remain configured or saved locally.</p>
 
       {message && (
         <div className={`banner ${ui === 'partial_failure' || ui === 'error' ? 'bad' : ''}`}>
           <div className="h">{ui === 'partial_failure' ? 'Partly applied' : ui === 'error' ? 'Something went wrong' : 'Done'}</div>
           <div className="meta">{message}</div>
+          {ui === 'error' && <button className="btn small" onClick={() => { setUi('loading'); setMessage(null); refresh() }}>Refresh state</button>}
         </div>
       )}
 
@@ -163,9 +172,9 @@ export default function Dashboard() {
           <div className="bar-fill" style={{ width: `${summary.allTokens ? (summary.activeTokens / summary.allTokens) * 100 : 0}%` }} />
         </div>
         <div className="meta clm-caveat">
-          Estimated from serialized tool schemas (characters ÷ 4). Not billed API tokens.
+          Estimated from measured tool schemas (characters ÷ 4), once per installed capability. Agent sessions may load tools differently; these are not billed tokens.
           {unmeasured > 0 && (
-            <> {unmeasured} capabilit{unmeasured === 1 ? 'y is' : 'ies are'} unmeasured — <button className="linkish" onClick={measure} disabled={measuring}>{measuring ? 'measuring…' : 'measure now'}</button></>
+            <> {unmeasured} capabilit{unmeasured === 1 ? 'y has' : 'ies have'} no measurement — <button className="linkish" onClick={measure} disabled={measuring || busyId !== null}>{measuring ? 'measuring…' : 'measure now'}</button></>
           )}
         </div>
       </div>
@@ -177,7 +186,7 @@ export default function Dashboard() {
           <button
             key={p.id}
             className={`tab ${view.currentProfileId === p.id ? 'on mcp' : ''}`}
-            disabled={ui === 'mutating'}
+            disabled={busyId !== null}
             onClick={() => useProfile(p.id)}
             title={p.description}
           >
@@ -207,10 +216,10 @@ export default function Dashboard() {
       </div>
 
       {fired.map((e, i) => (
-        <div key={i} className="banner">
-          <div className="h">{e.capabilityName} activated automatically</div>
+        <div key={i} className={`banner ${e.result.success ? '' : 'bad'}`}>
+          <div className="h">{e.capabilityName}: {e.result.success ? 'enabled for the next agent session' : 'automatic activation failed'}</div>
           <div className="meta">
-            {e.path} matched <code>{e.pattern}</code> → activated in {e.agent}
+            {e.path} matched <code>{e.pattern}</code> → {e.agent}
             {!e.result.success && <span className="caveat"> — but the change failed: {e.result.error}</span>}
           </div>
         </div>
@@ -231,9 +240,9 @@ export default function Dashboard() {
                 ? `${row.cost.toolCount} tools · ~${row.cost.estimatedTokens.toLocaleString()} est. tokens`
                 : row.cost?.source === 'unavailable'
                   ? <span className="caveat">{row.cost.note}</span>
-                  : 'cost not measured yet'}
+                  : 'schema cost unavailable or not measured'}
             </div>
-            {row.capability.triggers?.length && (
+            {!!row.capability.triggers?.length && (
               <div className="meta" style={{ marginTop: 4 }}>
                 <span className="tag">AUTO</span>{' '}
                 <span className="mono">{row.capability.triggers.map((t) => t.pattern).join('  ')}</span>

@@ -5,6 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron'
  * execution, no filesystem, no arbitrary channel access.
  */
 const api = {
+  info: () => ipcRenderer.invoke('app:info'),
   detectAgents: () => ipcRenderer.invoke('agents:detect'),
   listRegistry: () => ipcRenderer.invoke('registry:list'),
   analyze: (dir: string) => ipcRenderer.invoke('project:analyze', dir),
@@ -25,6 +26,11 @@ const api = {
   clmStartWatch: (projectDir: string) => ipcRenderer.invoke('clm:startWatch', projectDir),
   clmStopWatch: () => ipcRenderer.invoke('clm:stopWatch'),
   clmWatchStatus: () => ipcRenderer.invoke('clm:watchStatus'),
+  onWatchChanged: (cb: (e: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload)
+    ipcRenderer.on('clm:watchChanged', handler)
+    return () => ipcRenderer.off('clm:watchChanged', handler)
+  },
   /** Fired when a file-pattern trigger activates a capability. */
   onTrigger: (cb: (e: unknown) => void) => {
     const handler = (_e: unknown, payload: unknown) => cb(payload)
