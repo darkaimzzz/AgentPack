@@ -9,9 +9,11 @@ const sandbox = mkdtempSync(join(tmpdir(), 'agentpack-check-'))
 process.env.AGENTPACK_HOME = sandbox
 
 const { adapters } = await import('./agents/index.ts')
-const { getCapability, resolveArgs, capabilities, packs } = await import('./capabilities/registry.ts')
+const { getCapability, resolveArgs, missingInputs, capabilities, packs } = await import('./capabilities/registry.ts')
 const { install, rollback } = await import('./installer/install.ts')
 const { redact, resolveCommand } = await import('./installer/run.ts')
+const { scanProject } = await import('./detection/project.ts')
+const { recommend, RULES } = await import('./recommendations/rules.ts')
 const ledger = await import('./installer/ledger.ts')
 
 const tests: Array<[string, () => void | Promise<void>]> = []
@@ -36,6 +38,81 @@ test('${projectDir} is substituted in args', () => {
   const args = resolveArgs(getCapability('filesystem'), { projectDir: 'C:\\demo' })
   assert.ok(args.includes('C:\\demo'), 'projectDir placeholder not substituted')
   assert.ok(!args.some((a) => a.includes('${')), 'unsubstituted placeholder left behind')
+})
+
+test('declared inputs are substituted, and missing ones are caught', () => {
+  const supabase = getCapability('supabase')
+  const filled = resolveArgs(supabase, { projectDir: 'X', values: { SUPABASE_PROJECT_REF: 'abcd1234' } })
+  assert.ok(filled.includes('--project-ref=abcd1234'))
+  assert.deepEqual(missingInputs(supabase, { SUPABASE_PROJECT_REF: 'abcd1234' }), [])
+  // Unfilled placeholders must be reported, never written through literally.
+  assert.deepEqual(missingInputs(supabase, {}), ['SUPABASE_PROJECT_REF'])
+  assert.ok(resolveArgs(supabase, { projectDir: 'X' }).some((a) => a.includes('${')))
+})
+
+test('every rule names a capability the registry actually carries', () => {
+  const known = new Set(capabilities().map((c) => c.id))
+  for (const r of RULES) assert.ok(known.has(r.capabilityId), `rule points at missing capability: ${r.capabilityId}`)
+})
+
+// --- project detection + recommendation -------------------------------------
+
+const fixture = (name: string, files: Record<string, string>, dirs: string[] = []) => {
+  const dir = join(sandbox, 'fixtures', name)
+  mkdirSync(dir, { recursive: true })
+  for (const d of dirs) mkdirSync(join(dir, d), { recursive: true })
+  for (const [f, body] of Object.entries(files)) writeFileSync(join(dir, f), body)
+  return dir
+}
+
+test('detects a Next.js + Supabase project and explains why', () => {
+  const dir = fixture(
+    'nextjs-supabase',
+    {
+      'package.json': JSON.stringify({
+        dependencies: { next: '15.0.0', react: '19.0.0', '@supabase/supabase-js': '2.45.0' },
+        devDependencies: { typescript: '5.6.0' },
+      }),
+      'next.config.ts': 'export default {}',
+      '.env.example': '# comment\nDATABASE_URL=\nSUPABASE_ANON_KEY=\n',
+    },
+    ['.git'],
+  )
+  const scan = scanProject(dir)
+  const ids = scan.signals.map((s) => s.id)
+  for (const want of ['node', 'git', 'nextjs', 'react', 'supabase', 'typescript', 'postgres']) {
+    assert.ok(ids.includes(want), `missing signal: ${want} (got ${ids.join(', ')})`)
+  }
+  assert.equal(new Set(ids).size, ids.length, 'signals must be de-duplicated')
+  for (const s of scan.signals) assert.ok(s.evidence.length > 3, `${s.id} has no evidence string`)
+
+  const recs = recommend(scan)
+  const recIds = recs.map((r) => r.capability.id)
+  assert.deepEqual(recIds.sort(), ['filesystem', 'github', 'playwright', 'supabase'])
+  for (const r of recs) {
+    assert.ok(!r.reason.includes('{evidence}'), 'reason template not filled')
+    assert.ok(r.matched.length, 'recommendation carries no matching signal')
+  }
+})
+
+test('a bare Python project gets no browser tooling', () => {
+  const dir = fixture('py', { 'requirements.txt': 'flask\n' })
+  const recs = recommend(scanProject(dir)).map((r) => r.capability.id)
+  assert.ok(recs.includes('filesystem'))
+  assert.ok(!recs.includes('playwright'), 'no frontend, so no Playwright')
+  assert.ok(!recs.includes('supabase'))
+})
+
+test('an empty directory recommends nothing', () => {
+  const dir = fixture('empty', {})
+  const scan = scanProject(dir)
+  assert.equal(scan.isProject, false)
+  assert.deepEqual(recommend(scan), [])
+})
+
+test('a malformed package.json does not crash the scan', () => {
+  const dir = fixture('broken', { 'package.json': '{ not json' })
+  assert.doesNotThrow(() => scanProject(dir))
 })
 
 // --- secret redaction -------------------------------------------------------
@@ -167,6 +244,19 @@ test('ledger records secret names but never values', async () => {
   const raw = readFileSync(join(sandbox, '.agentpack', 'installs.json'), 'utf8')
   assert.ok(!raw.includes('ghp_must_not_appear'), 'SECRET LEAKED INTO LEDGER')
   assert.ok(raw.includes('GITHUB_PERSONAL_ACCESS_TOKEN'), 'secret name should be recorded')
+  rollback()
+})
+
+test('a capability with unfilled inputs fails loudly instead of writing ${}', async () => {
+  seed()
+  const r = await install({ capabilityIds: ['supabase'], agents: ['claude'], projectDir: sandbox })
+  const res = r.capabilities[0].results[0]
+  assert.equal(res.status, 'failed')
+  assert.match(res.error!, /missing required input: SUPABASE_PROJECT_REF/)
+  assert.equal(r.capabilities[0].health.reachable, false)
+  const cfg = readFileSync(join(sandbox, '.claude.json'), 'utf8')
+  assert.ok(!cfg.includes('${'), 'a literal placeholder was written into the config')
+  assert.ok(!cfg.includes('supabase'), 'failed capability must not be configured')
   rollback()
 })
 

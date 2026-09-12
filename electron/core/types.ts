@@ -11,8 +11,14 @@ export type Capability = {
   /** Publisher shown before install (CLAUDE.md §21 trust info). */
   source: string
   install: { command: string; args: string[] }
-  /** Env vars the user must supply. Values never live in the registry. */
+  /** Env vars the user must supply. Values never live in the registry, or the ledger. */
   secrets?: Array<{ key: string; label: string; help?: string }>
+  /**
+   * Non-secret values the user supplies, substituted into args as ${KEY}.
+   * Separate from secrets on purpose: these are safe to record and to export
+   * in a shareable pack manifest, secrets are not.
+   */
+  inputs?: Array<{ key: string; label: string; help?: string }>
   supportedAgents: AgentKey[]
 }
 

@@ -13,6 +13,8 @@ export type LedgerEntry = {
   capabilities: string[]
   /** Env var names supplied at install time. Names only, never values. */
   secretKeys: string[]
+  /** Non-secret ${...} values. Recorded in full so a run can be reproduced. */
+  inputs?: Record<string, string>
   backups: BackupToken[]
   rolledBackAt?: string
 }

@@ -2,11 +2,14 @@
 //
 //   node electron/core/cli.ts detect
 //   node electron/core/cli.ts list
+//   node electron/core/cli.ts scan [dir]
 //   node electron/core/cli.ts install playwright filesystem
 //   node electron/core/cli.ts install --pack fullstack
 //   node electron/core/cli.ts rollback
 import { detectAgents, adapters } from './agents/index.ts'
 import { capabilities, packs, getPack } from './capabilities/registry.ts'
+import { scanProject } from './detection/project.ts'
+import { recommend, alsoAvailable } from './recommendations/rules.ts'
 import { install, rollback } from './installer/install.ts'
 import type { AgentKey, ProgressEvent } from './types.ts'
 
@@ -33,6 +36,27 @@ if (cmd === 'detect') {
   }
   console.log('\nPacks')
   for (const p of packs()) console.log(`  ${p.id.padEnd(20)} ${p.capabilities.join(', ')}`)
+} else if (cmd === 'scan') {
+  const dir = rest[0] ?? process.cwd()
+  const scan = scanProject(dir)
+  console.log(`Detected Project ${dim(scan.dir)}\n`)
+  if (!scan.isProject) console.log(dim('  no recognised project signals'))
+  for (const s of scan.signals) console.log(`  ${s.label.padEnd(28)} ${dim(s.evidence)}`)
+
+  const recs = recommend(scan)
+  console.log('\nRecommended')
+  if (!recs.length) console.log(dim('  nothing — no rule matched'))
+  for (const r of recs) {
+    const needs = [
+      ...(r.capability.inputs ?? []).map((i) => i.key),
+      ...(r.capability.secrets ?? []).map((s) => s.key),
+    ]
+    console.log(`  ${green('✓')} ${r.capability.name.padEnd(20)} ${r.reason}`)
+    if (needs.length) console.log(`    ${dim(`requires ${needs.join(', ')}`)}`)
+  }
+
+  const extra = alsoAvailable(recs)
+  if (extra.length) console.log(`\nAlso available ${dim(extra.map((c) => c.id).join(', '))}`)
 } else if (cmd === 'install') {
   const packIdx = rest.indexOf('--pack')
   const ids = packIdx >= 0 ? getPack(rest[packIdx + 1]).capabilities : rest.filter((r) => !r.startsWith('--'))
@@ -46,10 +70,12 @@ if (cmd === 'detect') {
     process.exit(1)
   }
 
-  // Secrets come from the environment here; the UI will prompt for them.
+  // Secrets and inputs come from the environment here; the UI will prompt.
   const secrets: Record<string, string> = {}
+  const inputs: Record<string, string> = {}
   for (const c of capabilities()) {
     for (const s of c.secrets ?? []) if (process.env[s.key]) secrets[s.key] = process.env[s.key]!
+    for (const i of c.inputs ?? []) if (process.env[i.key]) inputs[i.key] = process.env[i.key]!
   }
 
   const onProgress = (e: ProgressEvent) => {
@@ -61,7 +87,7 @@ if (cmd === 'detect') {
   }
 
   console.log(`Installing ${ids.join(', ')} into ${agents.length} agents\n`)
-  const report = await install({ capabilityIds: ids, agents, projectDir: process.cwd(), secrets, onProgress })
+  const report = await install({ capabilityIds: ids, agents, projectDir: process.cwd(), secrets, inputs, onProgress })
 
   console.log('\nHealth report')
   let allOk = true

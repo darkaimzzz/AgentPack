@@ -31,10 +31,21 @@ export const getPack = (id: string): Pack => {
 }
 
 /**
- * Resolve registry placeholders in install args.
- * Only ${projectDir} today — servers like filesystem are useless without a path,
- * and baking an absolute path into shared registry data would not be portable.
+ * Resolve ${...} placeholders in install args.
+ *
+ * ${projectDir} is built in — servers like filesystem are useless without a
+ * path, and baking an absolute path into shared registry data is not portable.
+ * Everything else comes from the capability's declared `inputs`.
  */
-export function resolveArgs(cap: Capability, ctx: { projectDir: string }): string[] {
-  return cap.install.args.map((a) => a.replaceAll('${projectDir}', ctx.projectDir))
+export function resolveArgs(
+  cap: Capability,
+  ctx: { projectDir: string; values?: Record<string, string> },
+): string[] {
+  const table: Record<string, string> = { projectDir: ctx.projectDir, ...ctx.values }
+  return cap.install.args.map((a) => a.replace(/\$\{(\w+)\}/g, (whole, key: string) => table[key] ?? whole))
+}
+
+/** Placeholders an arg list still needs before it can be installed. */
+export function missingInputs(cap: Capability, values: Record<string, string> = {}): string[] {
+  return (cap.inputs ?? []).filter((i) => !values[i.key]).map((i) => i.key)
 }

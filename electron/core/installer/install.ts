@@ -1,5 +1,5 @@
 import { adapters } from '../agents/index.ts'
-import { getCapability, resolveArgs } from '../capabilities/registry.ts'
+import { getCapability, resolveArgs, missingInputs } from '../capabilities/registry.ts'
 import { backup, restore } from './backup.ts'
 import { probe } from './health.ts'
 import * as ledger from './ledger.ts'
@@ -12,6 +12,8 @@ export type InstallRequest = {
   projectDir: string
   /** Live secret values, in memory only. Never written to the ledger (CLAUDE.md §14). */
   secrets?: Record<string, string>
+  /** Non-secret values substituted into args as ${KEY}. Safe to record. */
+  inputs?: Record<string, string>
   onProgress?: (e: ProgressEvent) => void
 }
 
@@ -29,7 +31,7 @@ export type InstallReport = {
 }
 
 export async function install(req: InstallRequest): Promise<InstallReport> {
-  const { capabilityIds, agents, projectDir, secrets = {}, onProgress = () => {} } = req
+  const { capabilityIds, agents, projectDir, secrets = {}, inputs = {}, onProgress = () => {} } = req
   const runId = stamp()
   const secretValues = Object.values(secrets)
   const caps = capabilityIds.map(getCapability)
@@ -46,11 +48,31 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   const reports: CapabilityReport[] = []
 
   for (const cap of caps) {
-    const args = resolveArgs(cap, { projectDir })
+    const args = resolveArgs(cap, { projectDir, values: inputs })
     const resolved: Capability = { ...cap, install: { ...cap.install, args } }
     const env = Object.fromEntries(
       (cap.secrets ?? []).map((s) => [s.key, secrets[s.key] ?? '']).filter(([, v]) => v),
     )
+
+    // Refuse rather than write a config containing a literal ${PLACEHOLDER},
+    // which would look installed and fail later inside the agent.
+    const missing = missingInputs(cap, inputs)
+    if (missing.length) {
+      const error = `missing required input: ${missing.join(', ')}`
+      onProgress({ kind: 'stage', stage: 'configure', detail: `${cap.name}: ${error}` })
+      reports.push({
+        capability: cap,
+        results: agents.map((key) => ({
+          agent: key,
+          status: 'failed' as const,
+          configPath: adapters[key].configPath(),
+          backupPath: backups.find((b) => b.agent === key)!.backupPath,
+          error,
+        })),
+        health: { configured: false, reachable: false, tools: [], durationMs: 0, error },
+      })
+      continue
+    }
 
     onProgress({ kind: 'stage', stage: 'configure', detail: cap.name })
     const results: InstallResult[] = agents.map((key) => {
@@ -98,6 +120,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     projectDir,
     capabilities: capabilityIds,
     secretKeys: Object.keys(secrets), // names only
+    inputs, // non-secret by contract, so recorded in full for reproducibility
     backups,
   })
 
