@@ -1,6 +1,28 @@
 # AgentPack
 
-Configure MCP servers and marketplace plugins across Claude Code, Codex, and OpenCode from one desktop app. Scan a project, review the proposed changes, install, check server health, and undo the run.
+**A cross-agent package manager for AI coding capabilities.**
+
+Configure MCP servers and marketplace plugins across Claude Code, Codex, and OpenCode from one desktop app. Scan a project, review the proposed changes, install, check server health, manage what each agent loads, and undo the run.
+
+Built for HackBattle — IEEE Computer Society, VIT Vellore.
+
+## The problem
+
+The same capability needs different setup in every coding agent. Claude Code keeps MCP servers in `~/.claude.json` as JSON, Codex uses TOML tables in `~/.codex/config.toml`, OpenCode uses JSONC. Installing one MCP server across all three means reading three sets of docs, editing three files by hand, and having no way to tell whether any of it actually works — or to undo it.
+
+AgentPack collapses that into one flow:
+
+```
+DETECT agents + project stack
+  → RECOMMEND from deterministic rules, with evidence
+  → COMPILE one capability definition per agent format
+  → INSTALL and write config surgically
+  → VALIDATE by launching the server and reading tools/list
+  → MANAGE what each session loads
+  → ROLL BACK, ownership-aware
+```
+
+Adding a fourth agent is an adapter, not a rewrite.
 
 ## Run the demo
 
@@ -20,7 +42,9 @@ The portable build is `release/AgentPack-1.1.0-win-x64.exe`:
 .\release\AgentPack-1.1.0-win-x64.exe --demo
 ```
 
-Without `--demo`, AgentPack reads your real agent configuration. Use `npm run dev` for development or `npm start` after building. See [the demo script](docs/DEMO.md) and [readiness assessment](docs/READINESS.md).
+Without `--demo`, AgentPack reads your real agent configuration. Use `npm run dev` for development or `npm start` after building.
+
+For the presentation itself — preparation, a five-minute script with exact clicks, judge questions and a failure playbook — see **[the demo workflow](docs/DEMO.md)**. The scored engineering assessment and known gaps are in **[READINESS.md](docs/READINESS.md)**.
 
 ## What is included
 
@@ -39,6 +63,17 @@ Without `--demo`, AgentPack reads your real agent configuration. Use `npm run de
 | OpenCode | `~/.config/opencode/opencode.json` or `.jsonc` (`mcp`) | Changes the native `enabled` flag |
 
 Agent config changes apply when the client reloads them or starts its next session. The demo sandbox exercises real config translation and real MCP servers; it does not launch three coding-agent sessions.
+
+## Capability Load Manager
+
+Installed is not the same as loaded. Every active MCP server carries its full tool schemas — names, descriptions and JSON input schemas — into the agent's context at the start of every session, whether the task needs them or not. The **Manage** screen shows that cost and lets you turn it off without uninstalling anything.
+
+- **Measured cost, not a guess.** AgentPack launches each server, reads the `tools/list` response and estimates from its serialized size. The Local Developer pack measures **39 tools · ~9,000 estimated tokens** (Playwright 24, Filesystem 14, Sequential Thinking 1).
+- **Dormancy, per capability and per agent.** Codex and OpenCode have a native `enabled` flag. Claude Code has none, so the complete entry — credentials included — is saved to a local store and removed from the live config, then restored byte-for-byte on reactivation.
+- **Profiles.** Frontend, Backend and Minimal are registry data. Applying one computes a real diff against the live config and reports partial failure as partial.
+- **File-pattern activation.** A declared glob, such as Playwright's `**/*.spec.ts`, reactivates a dormant capability when a matching file appears.
+
+Changes are written to the live agent configuration and backed up first. They take effect in the agent's **next** session: Claude Code reads MCP configuration at session start and exposes no hot-reload. Estimates are tool-schema characters divided by four, not billed tokens.
 
 ## Validation and recovery
 
