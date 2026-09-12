@@ -102,7 +102,9 @@ if (cmd === 'detect') {
   for (const c of report.capabilities) {
     const h = c.health
     const needsCreds = Boolean(c.capability.secrets?.length)
-    if (h.reachable) {
+    if (h.status === 'configured') {
+      console.log(ok(`${c.capability.name.padEnd(20)} ${dim('configured — plugin loads inside the agent, not verifiable from here')}`))
+    } else if (h.reachable) {
       console.log(ok(`${c.capability.name.padEnd(20)} ${h.tools.length} tools ${dim(`${h.server?.name ?? ''} ${h.server?.version ?? ''} · ${h.durationMs}ms`)}`))
       // Honest about the limit of this check: tools/list answers before most
       // servers ever verify a credential.

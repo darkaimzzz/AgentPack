@@ -60,7 +60,7 @@ export function resolveArgs(
   ctx: { projectDir: string; values?: Record<string, string> },
 ): string[] {
   const table: Record<string, string> = { projectDir: ctx.projectDir, ...ctx.values }
-  return cap.install.args.map((a) => a.replace(/\$\{(\w+)\}/g, (whole, key: string) => table[key] ?? whole))
+  return (cap.install?.args ?? []).map((a) => a.replace(/\$\{(\w+)\}/g, (whole, key: string) => table[key] ?? whole))
 }
 
 /** Placeholders an arg list still needs before it can be installed. */

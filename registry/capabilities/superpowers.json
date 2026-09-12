@@ -1,0 +1,13 @@
+{
+  "id": "superpowers",
+  "name": "Superpowers",
+  "type": "plugin",
+  "description": "Feature-development workflow skills: brainstorming, planning, TDD and systematic debugging.",
+  "source": "Anthropic — github anthropics/claude-plugins-official",
+  "plugin": {
+    "marketplace": "claude-plugins-official",
+    "repo": "anthropics/claude-plugins-official",
+    "name": "superpowers"
+  },
+  "supportedAgents": ["claude", "codex"]
+}

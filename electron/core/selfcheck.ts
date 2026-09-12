@@ -30,7 +30,7 @@ test('registry loads capabilities and packs', () => {
   assert.ok(capabilities().length >= 3)
   assert.ok(packs().length >= 1)
   for (const c of capabilities()) {
-    assert.ok(c.id && c.name && c.install.command, `${c.id} malformed`)
+    assert.ok(c.id && c.name && (c.install?.command || c.plugin?.name), `${c.id} malformed`)
     assert.ok(c.supportedAgents.length, `${c.id} lists no agents`)
   }
 })
@@ -561,10 +561,99 @@ test('QA9: export recovers a real installed input value', async () => {
 
 test('QA10: registry packages are pinned to exact versions', () => {
   for (const c of capabilities()) {
-    for (const a of c.install.args) {
+    for (const a of c.install?.args ?? []) {
       if (!a.startsWith('@')) continue
       assert.ok(!a.endsWith('@latest'), `${c.id} uses @latest — not reproducible on demo day`)
       assert.match(a, /@\d[\w.-]*$/, `${c.id} package "${a}" is unpinned`)
+    }
+  }
+})
+
+// --- plugins (Claude Code + Codex only) --------------------------------------
+
+test('a plugin installs into Claude and Codex in their native formats', async () => {
+  seed()
+  mkdirSync(join(sandbox, '.claude'), { recursive: true })
+  writeFileSync(join(sandbox, '.claude', 'settings.json'), JSON.stringify({ theme: 'dark' }, null, 2))
+
+  const r = await install({ capabilityIds: ['superpowers'], agents: ['claude', 'codex'], projectDir: sandbox })
+  for (const res of r.capabilities[0].results) {
+    assert.equal(res.status, 'installed', `${res.agent}: ${res.error ?? ''}`)
+  }
+
+  // Claude: settings.json keys, verified against a real install.
+  const s = JSON.parse(readFileSync(join(sandbox, '.claude', 'settings.json'), 'utf8'))
+  assert.deepEqual(s.extraKnownMarketplaces['claude-plugins-official'],
+    { source: { source: 'github', repo: 'anthropics/claude-plugins-official' } })
+  assert.equal(s.enabledPlugins['superpowers@claude-plugins-official'], true)
+  assert.equal(s.theme, 'dark', 'unrelated settings must survive')
+
+  // Codex: TOML tables, and the document must still parse.
+  const { parse } = await import('smol-toml')
+  const toml = parse(readFileSync(join(sandbox, '.codex', 'config.toml'), 'utf8')) as {
+    marketplaces: Record<string, { source_type: string; source: string }>
+    plugins: Record<string, { enabled: boolean }>
+    mcp_servers: Record<string, unknown>
+  }
+  assert.equal(toml.marketplaces['claude-plugins-official'].source_type, 'git')
+  assert.match(toml.marketplaces['claude-plugins-official'].source, /anthropics\/claude-plugins-official\.git$/)
+  assert.equal(toml.plugins['superpowers@claude-plugins-official'].enabled, true)
+  assert.ok(toml.mcp_servers.node_repl, 'pre-existing MCP tables must survive')
+
+  // Both agents use the SAME plugin@marketplace id — worth pinning.
+  assert.ok('superpowers@claude-plugins-official' in s.enabledPlugins)
+  assert.ok('superpowers@claude-plugins-official' in toml.plugins)
+  rollbackAll()
+})
+
+test('a plugin reports configured, never verified', async () => {
+  seed()
+  mkdirSync(join(sandbox, '.claude'), { recursive: true })
+  const r = await install({ capabilityIds: ['claude-mem'], agents: ['claude'], projectDir: sandbox })
+  const h = r.capabilities[0].health
+  assert.equal(h.status, 'configured', 'a plugin must not claim verification it cannot perform')
+  assert.equal(h.method, 'config-only')
+  assert.deepEqual(h.tools, [], 'a plugin lists no tools from here')
+  assert.equal(h.reachable, false)
+  rollbackAll()
+})
+
+test('OpenCode is reported unsupported for plugins, not silently skipped', async () => {
+  seed()
+  const r = await install({ capabilityIds: ['superpowers'], agents: ['opencode'], projectDir: sandbox })
+  const res = r.capabilities[0].results[0]
+  assert.equal(res.status, 'failed')
+  assert.match(res.error!, /no git-marketplace plugin system/)
+  rollbackAll()
+})
+
+test('rolling back a plugin removes it but keeps the marketplace', async () => {
+  seed()
+  mkdirSync(join(sandbox, '.claude'), { recursive: true })
+  const settings = join(sandbox, '.claude', 'settings.json')
+  writeFileSync(settings, JSON.stringify({ theme: 'dark' }, null, 2))
+  await install({ capabilityIds: ['superpowers'], agents: ['claude'], projectDir: sandbox })
+  // Simulate a later edit so rollback takes the targeted path.
+  const edited = JSON.parse(readFileSync(settings, 'utf8'))
+  edited.somethingElse = 'keep'
+  writeFileSync(settings, JSON.stringify(edited, null, 2))
+  rollbackAll()
+  const after = JSON.parse(readFileSync(settings, 'utf8'))
+  assert.ok(!after.enabledPlugins?.['superpowers@claude-plugins-official'], 'plugin should be disabled again')
+  assert.ok(after.extraKnownMarketplaces?.['claude-plugins-official'], 'marketplace stays: other plugins may need it')
+  assert.equal(after.somethingElse, 'keep')
+})
+
+test('every registry entry declares exactly one install mechanism', () => {
+  for (const c of capabilities()) {
+    if (c.type === 'mcp') {
+      assert.ok(c.install?.command, `${c.id} is an mcp with no install block`)
+      assert.ok(!c.plugin, `${c.id} is an mcp but declares a plugin block`)
+    } else {
+      assert.ok(c.plugin?.repo && c.plugin?.name, `${c.id} is a plugin with no plugin block`)
+      assert.ok(!c.install, `${c.id} is a plugin but declares an install block`)
+      assert.ok(!c.supportedAgents.includes('opencode'),
+        `${c.id}: OpenCode has no git-marketplace plugin system, so it must not be listed`)
     }
   }
 })

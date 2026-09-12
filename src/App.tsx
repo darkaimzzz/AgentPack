@@ -425,7 +425,7 @@ function Report({
   events: ProgressEvent[]
 }) {
   const [showLogs, setShowLogs] = useState(false)
-  const failed = report.capabilities.filter((c) => !c.health.reachable || c.results.some((r) => r.status === 'failed' || r.status === 'conflict'))
+  const failed = report.capabilities.filter((c) => c.health.status === 'failed' || c.results.some((r) => r.status === 'failed' || r.status === 'conflict'))
   const totalTools = report.capabilities.reduce((n, c) => n + c.health.tools.length, 0)
 
   return (
@@ -490,7 +490,14 @@ function Report({
                 )
               })}
               <td>
-                {c.health.reachable ? (
+                {c.health.status === 'configured' ? (
+                  <>
+                    <span className="cell skip">· Configured</span>
+                    <div className="meta" style={{ fontSize: 11 }}>
+                      loads inside the agent; not verifiable from here
+                    </div>
+                  </>
+                ) : c.health.reachable ? (
                   <>
                     <span className="cell ok">✓ {c.health.tools.length} tools discovered</span>
                     <div className="meta" style={{ fontSize: 11 }}>

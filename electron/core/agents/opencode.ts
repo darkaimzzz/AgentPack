@@ -55,7 +55,7 @@ export const opencode: AgentAdapter = {
     // Edit in place so comments and formatting elsewhere in the file survive.
     editJsonc(this.configPath(), ['mcp', cap.id], {
       type: 'local',
-      command: [cap.install.command, ...cap.install.args], // single merged array
+      command: [cap.install!.command, ...cap.install!.args], // single merged array
       enabled: true,
       ...(Object.keys(env).length ? { environment: env } : {}),
     })

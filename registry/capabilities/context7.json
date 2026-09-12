@@ -1,0 +1,9 @@
+{
+  "id": "context7",
+  "name": "Context7",
+  "type": "mcp",
+  "description": "Pull up-to-date, version-specific documentation for a library straight into the agent's context.",
+  "source": "Upstash — npm @upstash/context7-mcp",
+  "install": { "command": "npx", "args": ["-y", "@upstash/context7-mcp@4.1.0"] },
+  "supportedAgents": ["claude", "codex", "opencode"]
+}

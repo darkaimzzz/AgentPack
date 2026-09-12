@@ -32,7 +32,8 @@ export function installedCapabilities(): Array<{ capability: Capability; agents:
       agents: (Object.keys(adapters) as AgentKey[]).filter((key) => {
         const a = adapters[key]
         try {
-          return a.detect().detected && a.read(capability) !== null
+          if (!a.detect().detected) return false
+          return capability.type === 'plugin' ? a.readPlugin?.(capability) != null : a.read(capability) !== null
         } catch {
           return false // an unreadable config is not a crash
         }
@@ -55,9 +56,9 @@ function recoverInputs(caps: Capability[]): Record<string, string> {
     for (const input of cap.inputs ?? []) {
       // Find the registry arg carrying this placeholder, then read the value
       // back out of whatever the agent actually has on disk.
-      const idx = cap.install.args.findIndex((a) => a.includes(`\${${input.key}}`))
+      const idx = (cap.install?.args ?? []).findIndex((a) => a.includes(`\${${input.key}}`))
       if (idx === -1) continue
-      const pattern = cap.install.args[idx]
+      const pattern = cap.install!.args[idx]
       for (const key of Object.keys(adapters) as AgentKey[]) {
         try {
           const entry = adapters[key].read(cap)

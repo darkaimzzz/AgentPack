@@ -41,14 +41,55 @@ export const claude: AgentAdapter = {
     return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {} }
   },
 
+  // Plugins live in ~/.claude/settings.json, verified against a real install:
+  //   extraKnownMarketplaces: { <market>: { source: { source: "github", repo } } }
+  //   enabledPlugins:         { "<plugin>@<market>": true }
+  settingsPath: () => join(home(), '.claude', 'settings.json'),
+  pluginConfigPath: () => join(home(), '.claude', 'settings.json'),
+
+  readPlugin(cap: Capability) {
+    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    if (!existsSync(p)) return null
+    const s = readJson<{ enabledPlugins?: Record<string, boolean> }>(p)
+    const id = `${cap.plugin!.name}@${cap.plugin!.marketplace}`
+    if (!(id in (s.enabledPlugins ?? {}))) return null
+    return { enabled: s.enabledPlugins![id] === true }
+  },
+
+  writePlugin(cap: Capability) {
+    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    const s = existsSync(p)
+      ? readJson<Record<string, unknown>>(p)
+      : ({} as Record<string, unknown>)
+    const markets = (s.extraKnownMarketplaces ?? {}) as Record<string, unknown>
+    markets[cap.plugin!.marketplace] ??= { source: { source: 'github', repo: cap.plugin!.repo } }
+    s.extraKnownMarketplaces = markets
+    const enabled = (s.enabledPlugins ?? {}) as Record<string, boolean>
+    enabled[`${cap.plugin!.name}@${cap.plugin!.marketplace}`] = true
+    s.enabledPlugins = enabled
+    writeJson(p, s)
+  },
+
+  removePlugin(cap: Capability) {
+    const p = (this as unknown as { settingsPath(): string }).settingsPath()
+    if (!existsSync(p)) return
+    const s = readJson<Record<string, unknown>>(p)
+    const enabled = (s.enabledPlugins ?? {}) as Record<string, boolean>
+    delete enabled[`${cap.plugin!.name}@${cap.plugin!.marketplace}`]
+    s.enabledPlugins = enabled
+    // The marketplace is left registered: other plugins may rely on it, and a
+    // stale marketplace entry is harmless where a missing one breaks them.
+    writeJson(p, s)
+  },
+
   write(cap: Capability, env: Record<string, string>) {
     const p = this.configPath()
     const cfg = load(p)
     cfg.mcpServers ??= {}
     cfg.mcpServers[cap.id] = {
       type: 'stdio',
-      command: cap.install.command,
-      args: cap.install.args,
+      command: cap.install!.command,
+      args: cap.install!.args,
       ...(Object.keys(env).length ? { env } : {}),
     }
     writeJson(p, cfg)

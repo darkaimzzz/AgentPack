@@ -1,5 +1,5 @@
 import { adapters } from '../agents/index.ts'
-import { matchEntry } from '../agents/adapter.ts'
+import { matchEntry, supportsType } from '../agents/adapter.ts'
 import { getCapability, resolveArgs, missingInputs } from '../capabilities/registry.ts'
 import { backup, restoreFile, deleteFile, hashFile } from './backup.ts'
 import { preflight, type PreflightResult } from './preflight.ts'
@@ -42,7 +42,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   // Preflight before any mutation: a missing runtime is one clear message here
   // rather than three cryptic spawn failures later (CLAUDE.md §12).
   onProgress({ kind: 'stage', stage: 'preflight' })
-  const pre = await preflight(caps)
+  const pre = await preflight(caps.filter((c) => c.type !== 'plugin'))
   for (const b of pre.binaries) {
     onProgress({
       kind: 'stage',
@@ -65,7 +65,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
           backupPath: null,
           error,
         })),
-        health: { configured: false, reachable: false, tools: [], durationMs: 0, error },
+        health: { status: 'failed' as const, method: 'config-only' as const, configured: false, reachable: false, tools: [], durationMs: 0, error },
       })),
     }
   }
@@ -73,10 +73,19 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   // One backup per agent per run, taken before any mutation. Backing up per
   // capability would create redundant copies and muddle what "undo" means.
   onProgress({ kind: 'stage', stage: 'backup' })
-  const backups = agents.map((key) => {
-    const token = backup(key, adapters[key].configPath(), runId)
-    onProgress({ kind: 'stage', stage: 'backup', detail: `${adapters[key].name}: ${token.existed ? token.backupPath! : 'no existing config'}` })
-    return token
+  const hasPlugin = caps.some((c) => c.type === 'plugin')
+  const backups = agents.flatMap((key) => {
+    const a = adapters[key]
+    // A plugin install can write a SECOND file (Claude keeps plugins in
+    // settings.json, not .claude.json). Back up everything the run may touch,
+    // or rollback silently cannot undo it.
+    const paths = new Set([a.configPath()])
+    if (hasPlugin && a.pluginConfigPath) paths.add(a.pluginConfigPath())
+    return [...paths].map((path) => {
+      const token = backup(key, path, runId)
+      onProgress({ kind: 'stage', stage: 'backup', detail: `${a.name}: ${token.existed ? token.backupPath! : `${path} (new)`}` })
+      return token
+    })
   })
 
   // Record the ledger entry NOW, before a single byte is written. If anything
@@ -96,7 +105,11 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
 
   for (const cap of caps) {
     const args = resolveArgs(cap, { projectDir, values: inputs })
-    const resolved: Capability = { ...cap, install: { ...cap.install, args } }
+    // Only MCP capabilities carry an install block; do not fabricate one for a
+    // plugin, or `install` would exist with no command.
+    const resolved: Capability = cap.install
+      ? { ...cap, install: { ...cap.install, args } }
+      : cap
     const env = Object.fromEntries(
       (cap.secrets ?? []).map((s) => [s.key, secrets[s.key] ?? '']).filter(([, v]) => v),
     )
@@ -116,7 +129,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
           backupPath: backups.find((b) => b.agent === key)!.backupPath,
           error,
         })),
-        health: { configured: false, reachable: false, tools: [], durationMs: 0, error },
+        health: { status: 'failed' as const, method: 'config-only' as const, configured: false, reachable: false, tools: [], durationMs: 0, error },
       })
       continue
     }
@@ -124,11 +137,14 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     onProgress({ kind: 'stage', stage: 'configure', detail: cap.name })
     const results: InstallResult[] = agents.map((key) => {
       const adapter = adapters[key]
-      const token = backups.find((b) => b.agent === key)!
+      const token = backups.find((b) => b.agent === key && b.configPath === adapter.configPath())!
       const base = { agent: key, configPath: adapter.configPath(), backupPath: token.backupPath }
       try {
-        if (!cap.supportedAgents.includes(key)) {
-          return { ...base, status: 'failed' as const, error: `${cap.name} does not support ${adapter.name}` }
+        if (!cap.supportedAgents.includes(key) || !supportsType(adapter, cap)) {
+          const why = cap.type === 'plugin' && !supportsType(adapter, cap)
+            ? `${adapter.name} has no git-marketplace plugin system`
+            : `${cap.name} does not support ${adapter.name}`
+          return { ...base, status: 'failed' as const, error: why }
         }
         // Compare what is actually on disk, not merely whether the id exists.
         // An entry with a stale command, a changed scope, or enabled:false would
@@ -147,7 +163,8 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
           onProgress({ kind: 'agent', agent: key, status: 'conflict', detail: `${cap.name}: differs` })
           return { ...base, status: 'conflict' as const, error }
         }
-        adapter.write(resolved, env)
+        if (cap.type === 'plugin') adapter.writePlugin!(resolved)
+        else adapter.write(resolved, env)
         onProgress({ kind: 'agent', agent: key, status: 'installed', detail: cap.name })
         return { ...base, status: 'installed' as const }
       } catch (e) {
@@ -157,16 +174,36 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
       }
     })
 
-    // Validate by starting the server ourselves. Agent-independent on purpose:
-    // it proves the capability works rather than that a file parsed.
     onProgress({ kind: 'stage', stage: 'validate', detail: cap.name })
-    const p = await probe({ command: resolved.install.command, args, env, secretValues })
     const configured = results.some((r) => r.status === 'installed' || r.status === 'already-present')
-    const health: HealthResult = { configured, ...p }
+
+    let health: HealthResult
+    if (cap.type === 'plugin') {
+      // A plugin has no server to start — its skills and commands load inside
+      // the agent process. We can confirm the config is correct and nothing
+      // more, so we say exactly that rather than implying verification.
+      health = {
+        status: configured ? 'configured' : 'failed',
+        method: 'config-only',
+        configured,
+        reachable: false,
+        tools: [],
+        durationMs: 0,
+        error: configured ? undefined : 'not written to any agent',
+      }
+    } else {
+      // Validate by starting the server ourselves. Agent-independent on purpose:
+      // it proves the capability works rather than that a file parsed.
+      const p = await probe({ command: resolved.install!.command, args, env, secretValues })
+      health = { status: p.reachable ? 'verified' : 'failed', method: 'tools-list', configured, ...p }
+    }
+
     onProgress({
       kind: 'stage',
       stage: 'validate',
-      detail: health.reachable ? `${cap.name}: ${health.tools.length} tools` : `${cap.name}: FAILED — ${health.error}`,
+      detail: health.status === 'verified' ? `${cap.name}: ${health.tools.length} tools`
+        : health.status === 'configured' ? `${cap.name}: configured (loads inside the agent)`
+        : `${cap.name}: FAILED — ${health.error}`,
     })
 
     reports.push({ capability: cap, results, health })
@@ -231,6 +268,7 @@ function undoEntry(entry: ledger.LedgerEntry): RollbackOutcome {
 
     const untouched = token.postHash != null && current === token.postHash
 
+    const undo = (c: Capability) => (c.type === 'plugin' ? adapter.removePlugin?.(c) : adapter.remove(c))
     if (!token.existed) {
       // We created this file. Delete it if it is still ours alone; otherwise
       // strip our entries and keep whatever else arrived.
@@ -238,7 +276,7 @@ function undoEntry(entry: ledger.LedgerEntry): RollbackOutcome {
         deleteFile(token.configPath)
         removed.push(token.configPath)
       } else {
-        for (const cap of caps) adapter.remove(cap)
+        for (const cap of caps) undo(cap)
         if (adapter.isEmpty()) {
           deleteFile(token.configPath)
           removed.push(token.configPath)
@@ -253,7 +291,7 @@ function undoEntry(entry: ledger.LedgerEntry): RollbackOutcome {
       restoreFile(token)
       restored.push(token.configPath)
     } else {
-      for (const cap of caps) adapter.remove(cap)
+      for (const cap of caps) undo(cap)
       merged.push(token.configPath)
     }
   }

@@ -97,14 +97,76 @@ export const codex: AgentAdapter = {
     return { command: e.command ?? '', args: e.args ?? [], env: e.env ?? {} }
   },
 
+  // Plugins, verified against a real ~/.codex/config.toml:
+  //   [marketplaces.<market>]  source_type = "git"  source = "https://github.com/o/r.git"
+  //   [plugins."<plugin>@<market>"]  enabled = true
+  readPlugin(cap: Capability) {
+    const raw = read(this.configPath())
+    if (!raw) return null
+    let doc: { plugins?: Record<string, { enabled?: boolean }> }
+    try {
+      doc = parseToml(raw) as typeof doc
+    } catch {
+      return null
+    }
+    const id = `${cap.plugin!.name}@${cap.plugin!.marketplace}`
+    const e = doc.plugins?.[id]
+    if (!e) return null
+    return { enabled: e.enabled === true }
+  },
+
+  writePlugin(cap: Capability) {
+    const p = this.configPath()
+    const prev = read(p)
+    const { marketplace, repo, name } = cap.plugin!
+    const lines: string[] = []
+    // Register the marketplace only if it is not already known — re-declaring
+    // an existing TOML table is a parse error.
+    const known = new RegExp(`^\\s*\\[marketplaces\\.${escapeRe(marketplace)}\\]`, 'm').test(prev)
+    if (!known) {
+      lines.push(
+        '',
+        `[marketplaces.${tableKey(marketplace)}]`,
+        'source_type = "git"',
+        `source = ${tomlString(`https://github.com/${repo}.git`)}`,
+      )
+    }
+    lines.push('', `[plugins.${tomlString(`${name}@${marketplace}`)}]`, 'enabled = true')
+    mkdirSync(dirname(p), { recursive: true })
+    const next = prev.replace(/\s*$/, prev ? '\n' : '') + lines.join('\n') + '\n'
+    try {
+      parseToml(next)
+    } catch (e) {
+      throw new Error(`refusing to write invalid TOML for plugin ${cap.id}: ${(e as Error).message}`)
+    }
+    writeFileSync(p, next)
+  },
+
+  removePlugin(cap: Capability) {
+    const p = this.configPath()
+    const text = read(p)
+    if (!text) return
+    const id = `${cap.plugin!.name}@${cap.plugin!.marketplace}`
+    const lines = text.split('\n')
+    const head = new RegExp(`^\\s*\\[plugins\\.${escapeRe(tomlString(id))}\\]`)
+    const start = lines.findIndex((l) => head.test(l))
+    if (start === -1) return
+    let end = start + 1
+    while (end < lines.length && !/^\s*\[/.test(lines[end])) end++
+    const from = start > 0 && lines[start - 1].trim() === '' ? start - 1 : start
+    lines.splice(from, end - from)
+    // Marketplace left registered on purpose: other plugins may depend on it.
+    writeFileSync(p, lines.join('\n'))
+  },
+
   write(cap: Capability, env: Record<string, string>) {
     const p = this.configPath()
     const key = tableKey(cap.id)
     const lines = [
       '',
       `[mcp_servers.${key}]`,
-      `command = ${tomlString(cap.install.command)}`,
-      `args = [${cap.install.args.map(tomlString).join(', ')}]`,
+      `command = ${tomlString(cap.install!.command)}`,
+      `args = [${cap.install!.args.map(tomlString).join(', ')}]`,
     ]
     if (Object.keys(env).length) {
       lines.push('', `[mcp_servers.${key}.env]`)

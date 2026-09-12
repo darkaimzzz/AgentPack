@@ -15,7 +15,8 @@ export type Capability = {
   type: 'mcp' | 'plugin'
   description: string
   source: string
-  install: { command: string; args: string[] }
+  install?: { command: string; args: string[] }
+  plugin?: { marketplace: string; repo: string; name: string }
   secrets?: Array<{ key: string; label: string; help?: string }>
   inputs?: Array<{ key: string; label: string; help?: string }>
   supportedAgents: AgentKey[]
@@ -42,6 +43,8 @@ export type InstallResult = {
 }
 
 export type HealthResult = {
+  status: 'verified' | 'configured' | 'failed'
+  method: 'tools-list' | 'config-only'
   configured: boolean
   reachable: boolean
   tools: string[]

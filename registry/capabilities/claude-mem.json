@@ -1,0 +1,13 @@
+{
+  "id": "claude-mem",
+  "name": "Claude-Mem",
+  "type": "plugin",
+  "description": "Persistent cross-session memory: recall decisions and context from previous sessions.",
+  "source": "thedotmack — github thedotmack/claude-mem",
+  "plugin": {
+    "marketplace": "thedotmack",
+    "repo": "thedotmack/claude-mem",
+    "name": "claude-mem-cowork"
+  },
+  "supportedAgents": ["claude", "codex"]
+}

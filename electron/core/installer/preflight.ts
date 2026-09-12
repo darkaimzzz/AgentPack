@@ -25,14 +25,14 @@ async function checkBinary(name: string) {
 }
 
 export async function preflight(caps: Capability[]): Promise<PreflightResult> {
-  const needed = [...new Set(caps.map((c) => c.install.command))]
+  const needed = [...new Set(caps.filter((c) => c.install).map((c) => c.install!.command))]
   const binaries = await Promise.all(
     needed.map(async (name) => ({ name, ...(await checkBinary(name)) })),
   )
   const problems = binaries
     .filter((b) => !b.found)
     .map((b) => `${b.name} is not available on PATH — required by ${
-      caps.filter((c) => c.install.command === b.name).map((c) => c.name).join(', ')
+      caps.filter((c) => c.install?.command === b.name).map((c) => c.name).join(', ')
     }`)
   return { ok: problems.length === 0, binaries, problems }
 }

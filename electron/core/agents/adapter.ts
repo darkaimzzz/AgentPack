@@ -35,6 +35,22 @@ export type AgentAdapter = {
   remove(cap: Capability): void
   /** True when the config holds no capability entries at all. */
   isEmpty(): boolean
+
+  /**
+   * Plugin support. Only agents with a git-marketplace model implement these —
+   * Claude Code and Codex. OpenCode's `plugin` array is npm-based and is NOT
+   * an equivalent, so it deliberately leaves these undefined.
+   */
+  /** Extra file a plugin install writes, if different from configPath(). */
+  pluginConfigPath?(): string
+  readPlugin?(cap: Capability): { enabled: boolean } | null
+  writePlugin?(cap: Capability): void
+  removePlugin?(cap: Capability): void
+}
+
+/** Does this adapter support the capability's type at all? */
+export function supportsType(adapter: AgentAdapter, cap: Capability): boolean {
+  return cap.type === 'plugin' ? typeof adapter.writePlugin === 'function' : true
 }
 
 const sameArgs = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])
@@ -54,9 +70,15 @@ export function matchEntry(
   cap: Capability,
   env: Record<string, string>,
 ): MatchState {
+  if (cap.type === 'plugin') {
+    const p = adapter.readPlugin?.(cap)
+    if (!p) return 'absent'
+    return p.enabled ? 'same' : 'different'
+  }
   const existing = adapter.read(cap)
   if (!existing) return 'absent'
   if (existing.enabled === false) return 'different'
+  if (!cap.install) return 'different'
   return existing.command === cap.install.command &&
     sameArgs(existing.args, cap.install.args) &&
     sameEnv(existing.env, env)
