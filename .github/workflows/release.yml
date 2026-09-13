@@ -35,7 +35,14 @@ jobs:
           "notes=$($exe.Name) -- SHA-256: $hash" >> $env:GITHUB_OUTPUT
 
       # gh is preinstalled on GitHub runners, so no third-party action is needed.
-      # --notes is documented as prepending to --generate-notes output.
+      #
+      # --generate-notes is deliberately absent. The releases API returned HTTP 500
+      # for this repository whenever note generation was requested (run 34750521315);
+      # creating the release with an explicit body succeeds.
+      #
+      # If the release already exists — a re-run after a partial failure — attach the
+      # artifact to it rather than failing the job.
+      #
       # Values reach the shell as environment variables rather than being
       # interpolated into the script text.
       - name: Publish
@@ -44,8 +51,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EXE: ${{ steps.sum.outputs.exe }}
           NOTES: ${{ steps.sum.outputs.notes }}
-        run: >
-          gh release create "$env:GITHUB_REF_NAME" "$env:EXE"
-          --title "$env:GITHUB_REF_NAME"
-          --notes "$env:NOTES"
-          --generate-notes
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" "$env:EXE" --title "$env:GITHUB_REF_NAME" --notes "$env:NOTES" ||
+            gh release upload "$env:GITHUB_REF_NAME" "$env:EXE" --clobber
