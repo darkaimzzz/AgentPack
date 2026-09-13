@@ -38,7 +38,25 @@
     "vite": "^7.3.6"
   },
   "main": "out/main/main.js",
-  "author": "AgentPack — HackBattle, IEEE CS VIT Vellore",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/darkaimzzz/AgentPack.git"
+  },
+  "bugs": {
+    "url": "https://github.com/darkaimzzz/AgentPack/issues"
+  },
+  "homepage": "https://github.com/darkaimzzz/AgentPack#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "codex",
+    "opencode",
+    "ai-agents",
+    "developer-tools",
+    "electron"
+  ],
   "build": {
     "appId": "dev.agentpack.app",
     "productName": "AgentPack",

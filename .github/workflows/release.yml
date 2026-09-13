@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Package
+        run: npm run dist
+
+      # The artifact is unsigned, so publish a checksum users can verify against.
+      - name: Checksum
+        id: sum
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem release/*.exe | Select-Object -First 1
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          Write-Host "$($exe.Name)  $hash"
+          "exe=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          "notes=$($exe.Name) -- SHA-256: $hash" >> $env:GITHUB_OUTPUT
+
+      # gh is preinstalled on GitHub runners, so no third-party action is needed.
+      # --notes is documented as prepending to --generate-notes output.
+      # Values reach the shell as environment variables rather than being
+      # interpolated into the script text.
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXE: ${{ steps.sum.outputs.exe }}
+          NOTES: ${{ steps.sum.outputs.notes }}
+        run: >
+          gh release create "$env:GITHUB_REF_NAME" "$env:EXE"
+          --title "$env:GITHUB_REF_NAME"
+          --notes "$env:NOTES"
+          --generate-notes

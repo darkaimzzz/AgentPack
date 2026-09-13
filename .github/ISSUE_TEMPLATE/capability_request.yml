@@ -1,0 +1,56 @@
+name: Capability request
+description: Propose an MCP server or plugin for the registry
+labels: [registry]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The registry is curated and allow-listed. An entry is accepted once it has
+        been observed starting and answering `tools/list` — see
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+
+  - type: input
+    id: name
+    attributes:
+      label: Name and package
+      placeholder: "Playwright — npm @playwright/mcp@0.0.4x"
+    validations:
+      required: true
+
+  - type: input
+    id: publisher
+    attributes:
+      label: Publisher
+      description: Who actually maintains it, with a link.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options: [MCP server, Marketplace plugin]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: tested
+    attributes:
+      label: Which agents have you run it in
+      options:
+        - label: Claude Code
+        - label: Codex
+        - label: OpenCode
+
+  - type: textarea
+    id: tools
+    attributes:
+      label: Tool list
+      description: Paste its `tools/list` response, or the tool names and count.
+      render: text
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it belongs here
+      description: What it does that nothing in the registry already does.

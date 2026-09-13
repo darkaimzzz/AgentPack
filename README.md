@@ -2,13 +2,16 @@
 
 **A cross-agent package manager for AI coding capabilities.**
 
-Configure MCP servers and marketplace plugins across Claude Code, Codex, and OpenCode from one desktop app. Scan a project, review the proposed changes, install, check server health, manage what each agent loads, and undo the run.
+[![CI](https://github.com/darkaimzzz/AgentPack/actions/workflows/ci.yml/badge.svg)](https://github.com/darkaimzzz/AgentPack/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Built for HackBattle — IEEE Computer Society, VIT Vellore.
+Install and manage MCP servers and marketplace plugins across Claude Code, Codex, and OpenCode from one desktop app. Scan a project, review the proposed changes, install, verify the servers actually start, control what each agent loads, and undo the run.
 
-## The problem
+> We don't list tools — we install capability packs across your coding agents and prove they work.
 
-The same capability needs different setup in every coding agent. Claude Code keeps MCP servers in `~/.claude.json` as JSON, Codex uses TOML tables in `~/.codex/config.toml`, OpenCode uses JSONC. Installing one MCP server across all three means reading three sets of docs, editing three files by hand, and having no way to tell whether any of it actually works — or to undo it.
+## Why
+
+The same capability needs different setup in every coding agent. Claude Code keeps MCP servers in `~/.claude.json` as JSON. Codex uses TOML tables in `~/.codex/config.toml`. OpenCode uses JSONC. Installing one MCP server across all three means reading three sets of docs, hand-editing three files, and having no way to tell whether any of it worked — or to undo it.
 
 AgentPack collapses that into one flow:
 
@@ -22,70 +25,75 @@ DETECT agents + project stack
   → ROLL BACK, ownership-aware
 ```
 
-Adding a fourth agent is an adapter, not a rewrite.
+Adding a fourth agent is an adapter (~60 lines), not a rewrite.
 
-## Run the demo
+## Status
 
-Requires Windows x64 and Node.js **22.17 or newer** with npm on PATH. Internet access is needed for the first MCP package download. The desktop executable bundles Electron, but MCP servers still use the installed Node runtime.
+Working and tested on **Windows x64**. macOS and Linux are not supported yet — see [#1 below](#roadmap). Release binaries are unsigned, so Windows SmartScreen will warn on first launch.
+
+## Install
+
+Requires **Node.js 22.17+** with npm on PATH. The packaged app bundles Electron, but MCP servers are launched with your installed Node runtime.
+
+**Download** the portable executable from [Releases](https://github.com/darkaimzzz/AgentPack/releases), or build from source:
 
 ```powershell
+git clone https://github.com/darkaimzzz/AgentPack.git
+cd AgentPack
 npm ci
-npm run prewarm
+npm run dist          # → release/AgentPack-<version>-win-x64.exe
+```
+
+### Try it without touching your real config
+
+```powershell
 npm run demo
 ```
 
-`npm run demo` opens a fresh sandbox containing three sample agent configs and a nested Next.js + Supabase project. Click **Scan demo project**, **Continue**, choose **Local Developer**, then **Review plan** and **Install selected**. This pack needs no API keys.
+`--demo` opens an isolated sandbox with three sample agent configs and a nested Next.js + Supabase project. Nothing outside the sandbox is read or written. Click **Scan demo project** → **Continue** → **Local Developer** → **Review plan** → **Install selected**; that pack needs no API keys.
 
-The portable build is `release/AgentPack-2.0.0-win-x64.exe`:
+**Without `--demo`, AgentPack reads and writes your real agent configuration.** `AGENTPACK_HOME` redirects both configs and state into an isolated directory if you want a softer sandbox.
 
-```powershell
-.\release\AgentPack-2.0.0-win-x64.exe --demo
-```
+Run `npm run prewarm` first on a slow connection — it downloads the MCP packages ahead of time so the first install isn't waiting on npm.
 
-Without `--demo`, AgentPack reads your real agent configuration. Use `npm run dev` for development or `npm start` after building.
+## What's included
 
-For the presentation itself — preparation, a five-minute script with exact clicks, judge questions and a failure playbook — see **[the demo workflow](docs/DEMO.md)**. The scored engineering assessment and known gaps are in **[READINESS.md](docs/READINESS.md)**, and an external agent's fault-injection review of v1.6.0, with all seven of its findings fixed, is in **[INDEPENDENT-REVIEW.md](docs/INDEPENDENT-REVIEW.md)**.
+- **Twelve MCP servers** — Playwright, Chrome DevTools, Filesystem, Git, Memory, Sequential Thinking, Context7, SQL Database (Postgres/MySQL/MariaDB/SQLite/SQL Server), MongoDB, Supabase, GitHub, Firecrawl. Every one was launched and made to answer `tools/list` before being added to the registry.
+- **Eighteen marketplace plugins** — Superpowers, Claude Mem, Plannotator, Beads, Caveman, Karpathy Skills, Taste, plus GitHub, Vercel, Netlify, Sentry, Linear, Notion, Expo, Prisma, Redis, Semgrep and Figma from Anthropic's official marketplace. Plugins work in Claude Code and Codex; OpenCode uses a different plugin system.
+- **Four packs** — Local Developer and Agent Craft (both credential-free), Full-Stack, and Data & Backend.
+- Project detection with per-signal evidence: nested `package.json` files, Next.js configs, Supabase SSR dependencies and config folders, environment variable names.
+- Target selection, credential entry, compatibility checks, progress logs, conflict reporting, rollback.
+- Capability management: activate/deactivate, profiles, context cost estimates, file-pattern activation.
+- Secret-free pack export/import via the CLI.
 
-## What is included
+The registry is **curated and allow-listed**, not an open marketplace. Adding a capability is a pull request — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- **Twelve MCP servers:** Playwright, Chrome DevTools, Filesystem, Git, Memory, Sequential Thinking, Context7, SQL Database (Postgres/MySQL/MariaDB/SQLite/SQL Server), MongoDB, Supabase, GitHub, Firecrawl. Every one has been launched and made to answer `tools/list` before being listed.
-- **Eighteen marketplace plugins:** Superpowers, Claude Mem, Plannotator, Beads, Caveman, Karpathy Skills, Taste, plus GitHub, Vercel, Netlify, Sentry, Linear, Notion, Expo, Prisma, Redis, Semgrep and Figma from Anthropic's official marketplace. Plugins are supported in Claude Code and Codex; OpenCode uses a different plugin system.
-- **Four packs:** Local Developer, Agent Craft (both credential-free), Full-Stack and Data & Backend.
-- Nested project detection with evidence for each signal, including Next.js configs, Supabase SSR dependencies, Supabase config folders, and environment variable names.
-- Target selection, credential entry, compatibility checks, progress logs, conflict reporting, and rollback.
-- Capability management: activate/deactivate, profiles, schema cost estimates, and file-pattern activation.
-- Secret-free pack export/import through the CLI.
-- A frameless window with no OS menu bar: the app draws its own title bar and controls.
-- A startup sequence that opens the device and lands its logo in the header. Drawn entirely in SVG and CSS — it ships no image or audio assets. Any click or keypress skips it; it respects `prefers-reduced-motion`, and `--demo` plays it regardless so a demo machine with animation effects switched off still shows it. Set `AGENTPACK_BOOT=1` to force it on, `AGENTPACK_NO_BOOT=1` to force it off.
+## How it works
 
-| Agent | MCP configuration | Dormancy |
+| Agent | MCP configuration | Dormancy mechanism |
 | --- | --- | --- |
-| Claude Code | `~/.claude.json` (`mcpServers`) | Saves the full native entry locally, then removes it from the live config |
-| Codex | `~/.codex/config.toml` (`mcp_servers`) | Changes the native `enabled` flag |
-| OpenCode | `~/.config/opencode/opencode.json` or `.jsonc` (`mcp`) | Changes the native `enabled` flag |
+| Claude Code | `~/.claude.json` (`mcpServers`) | No native flag — saves the full entry locally, then removes it from the live config |
+| Codex | `~/.codex/config.toml` (`mcp_servers`) | Flips the native `enabled` flag |
+| OpenCode | `~/.config/opencode/opencode.json` or `.jsonc` (`mcp`) | Flips the native `enabled` flag |
 
-Agent config changes apply when the client reloads them or starts its next session. The demo sandbox exercises real config translation and real MCP servers; it does not launch three coding-agent sessions.
+Config changes apply when the client reloads them or starts its next session.
 
-## Capability Load Manager
+### Capability Load Manager
 
-Installed is not the same as loaded. Every active MCP server carries its full tool schemas — names, descriptions and JSON input schemas — into the agent's context at the start of every session, whether the task needs them or not. The **Manage** screen shows that cost and lets you turn it off without uninstalling anything.
+Installed is not the same as loaded. Every active MCP server carries its full tool schemas — names, descriptions, JSON input schemas — into the agent's context at the start of every session, whether the task needs them or not. The **Manage** screen shows that cost and lets you turn a capability off without uninstalling it.
 
-- **Measured cost, not a guess.** AgentPack launches each server, reads the `tools/list` response and estimates from its serialized size. The Local Developer pack measures **39 tools · ~9,000 estimated tokens** (Playwright 24, Filesystem 14, Sequential Thinking 1).
-- **Dormancy, per capability and per agent.** Codex and OpenCode have a native `enabled` flag. Claude Code has none, so the complete entry — credentials included — is saved to a local store and removed from the live config, then restored byte-for-byte on reactivation.
-- **Profiles.** Frontend, Backend and Minimal are registry data. Applying one computes a real diff against the live config and reports partial failure as partial.
-- **File-pattern activation.** A declared glob, such as Playwright's `**/*.spec.ts`, reactivates a dormant capability when a matching file appears.
+- **Measured, not guessed.** AgentPack launches each server, reads `tools/list`, and estimates from the serialized size. The Local Developer pack measures **39 tools · ~9,000 estimated tokens** (Playwright 24, Filesystem 14, Sequential Thinking 1).
+- **Dormancy, per capability and per agent.** Where the format has a native `enabled` flag, nothing is removed. Where it doesn't (Claude Code), the complete entry — credentials included — is stashed locally and restored byte-for-byte on reactivation.
+- **Profiles.** Frontend, Backend and Minimal are registry data, not code. Applying one computes a real diff against the live config and reports partial failure as partial. Membership is exhaustive: switching to Backend turns Playwright *off* as well as turning Supabase on.
+- **File-pattern activation.** A declared glob — Playwright's `**/*.spec.ts`, say — reactivates a dormant capability when a matching file is touched. Activation only; a trigger never deactivates anything.
 
-Changes are written to the live agent configuration and backed up first. They take effect in the agent's **next** session: Claude Code reads MCP configuration at session start and exposes no hot-reload. Estimates are tool-schema characters divided by four, not billed tokens.
+### Validation and recovery
 
-## Validation and recovery
+"Healthy" means the server started, completed initialization, and returned a valid tool list. It does **not** prove account access or that every tool works. Plugin status reads **Configured**, never Verified, because a plugin loads inside the agent where AgentPack cannot observe it.
 
-MCP health means the server started, completed initialization, and returned a valid tool list. It does **not** prove account access or every tool operation. Plugin status is **Configured**, since AgentPack does not verify that a client has downloaded or loaded the plugin.
+Before writing, AgentPack saves config snapshots and an install ledger under `~/.agentpack`. Rollback restores original bytes where it can, preserves unrelated later edits, and refuses to clobber a config that changed underneath it. Formats that carry comments (TOML, JSONC) take a surgical path so annotations added after install survive.
 
-Before writing, AgentPack saves config snapshots and an install ledger under `~/.agentpack`. Rollback restores original bytes when possible, preserves unrelated later edits, and refuses conflicting edits to an owned capability. If a config changes during installation, subsequent writes to that file stop. Reactivate a natively disabled capability before undoing its original installation if rollback reports a conflict.
-
-Credentials are excluded from progress logs, the install ledger, exported manifests, and measurement metadata. They are still present in the agent configs, config backups, and Claude's dormant credential store. Keep those files private. `AGENTPACK_HOME` redirects both configs and state into an isolated directory.
-
-Context estimates use serialized tool-schema characters divided by four, once per installed capability. They are not billed tokens or a promise about what a particular agent loads. HTTP MCP schema measurement is currently unavailable.
+Context figures are tool-schema characters divided by four — an estimate of what an agent's *next* session will load, not billed tokens.
 
 ## CLI
 
@@ -93,7 +101,7 @@ Context estimates use serialized tool-schema characters divided by four, once pe
 npm run cli -- scan C:\path\to\project
 npm run cli -- install --pack local
 npm run cli -- status
-npm run cli -- rollback
+npm run cli -- rollback              # last run
 npm run cli -- rollback --all
 npm run cli -- export team-pack.json
 npm run cli -- import team-pack.json
@@ -102,36 +110,60 @@ npm run cli -- clm measure --force
 npm run cli -- clm use minimal
 ```
 
-Imports honor the manifest's targets and require its declared credential environment variables. Inspect the manifest before importing it. Use the Local Developer or Agent Craft pack for a demo that does not depend on external account access.
+Exported manifests contain no secrets. Imports honour the manifest's targets and require its declared credential environment variables — inspect a manifest before importing one you didn't write.
 
-The GitHub **MCP** entry is the archived `@modelcontextprotocol/server-github`, deprecated upstream and kept only because it is the one of the two that works in OpenCode. On Claude Code and Codex, prefer the **GitHub plugin**, which is the maintained [official server](https://github.com/github/github-mcp-server) and authenticates inside the agent. Note that the npm package published as `github-mcp-server` is unrelated to GitHub and is deliberately not used here.
+## Security
 
-## Checks and packaging
+AgentPack writes to files your coding agents execute from, and handles API credentials. Credentials are excluded from progress logs, the install ledger, exported manifests, and measurement metadata — but they are necessarily present in the agent configs, in config backups, and in the dormant entry store. Keep those files private.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Adding a capability is a JSON file. Adding an agent is an adapter. Both are documented in **[CONTRIBUTING.md](CONTRIBUTING.md)**, along with the full check suite and what has to pass before a PR merges.
 
 ```powershell
-npm run typecheck
-npm test
-npm run check
-npm run e2e
-npm run test:ui
-npm run test:tools
-npm run smoke
-npm run dist
+npm run typecheck   # types
+npm test            # deterministic fixture regressions
+npm run check       # self-checks — launches real MCP packages
+npm run e2e         # engine acceptance
+npm run test:ui     # built Electron renderer, preload and IPC
+npm run test:tools  # three real tool calls
+npm run smoke       # fresh demo sandbox, app wiring
 ```
 
-`npm test` runs focused fixture regressions. `check` and `e2e` also start real MCP packages; `test:ui` drives the built Electron renderer, preload and IPC; `test:tools` executes three real tool calls. These checks use synthetic configs. UI evidence is saved under ignored `.qa/`. `smoke` opens a fresh demo sandbox and checks application wiring.
+`npm run typecheck` and `npm test` are the two CI runs on every PR. The rest need network access and a desktop session, so they're local.
 
-`dist` creates a Windows portable executable. The current artifact is unsigned. Runtime dependency audit: `npm audit --omit=dev`.
+## Roadmap
 
-The app icon is drawn, like the rest of the interface. `build/icon.svg` is used for large sizes and `build/icon-small.svg` — simplified, since the lamps and D-pad turn to mush below 48px — for the 16 and 32px entries the Windows taskbar actually shows. Rebuild `build/icon.ico` from both with `node scripts/make-icon.mjs`.
+1. **macOS and Linux support.** The engine is mostly portable; path resolution and packaging are not.
+2. HTTP MCP servers — schema measurement is currently unavailable for them.
+3. Signed release artifacts.
+4. Verifying that a coding agent actually loaded a written config, rather than inferring it.
 
-## Code layout
+Issues and PRs welcome for any of these.
 
-- `electron/core/agents`: native config adapters
-- `electron/core/detection`: bounded project scan
-- `electron/core/installer`: process execution, validation, snapshots and ledger
-- `electron/core/clm`: capability states, profiles, measurements and triggers
-- `electron/ipc` and `electron/preload.ts`: restricted desktop API
-- `src`: React install wizard and management dashboard
-- `registry`: curated capabilities, packs and profiles
-- `scripts`: reproducible live acceptance tests
+## Project layout
+
+```
+electron/core/agents      native config adapters (one per agent)
+electron/core/detection   bounded project scan
+electron/core/installer   process execution, validation, snapshots, ledger
+electron/core/clm         capability states, profiles, measurement, triggers
+electron/ipc              restricted desktop API surface
+src                       React install wizard and management dashboard
+registry                  curated capabilities, packs, profiles
+scripts                   reproducible live acceptance tests
+```
+
+An external agent reviewed v1.6.0 with its own fault-injection fixtures and filed seven defects, three of them P1. All seven are fixed with regression tests; the review is published unedited in [docs/INDEPENDENT-REVIEW.md](docs/INDEPENDENT-REVIEW.md).
+
+## Notes on the registry
+
+The GitHub **MCP** entry is the archived `@modelcontextprotocol/server-github`, deprecated upstream and kept only because it is the one of the two that works in OpenCode. On Claude Code and Codex prefer the **GitHub plugin**, which is the maintained [official server](https://github.com/github/github-mcp-server) and authenticates inside the agent. The npm package published as `github-mcp-server` is unrelated to GitHub and is deliberately not used.
+
+The app icon is drawn rather than designed: `build/icon.svg` for large sizes, `build/icon-small.svg` for 16 and 32px (the lamps and D-pad turn to mush below 48px). Rebuild `build/icon.ico` with `node scripts/make-icon.mjs`.
+
+## License
+
+[MIT](LICENSE)
