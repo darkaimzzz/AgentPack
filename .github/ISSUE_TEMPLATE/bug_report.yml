@@ -1,0 +1,62 @@
+name: Bug report
+description: Something behaved differently than documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste real agent config files or credentials.** Reproduce against
+        the sandbox (`npm run demo`, or set `AGENTPACK_HOME`) and redact anything
+        that looks like a token.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what happened, what you expected instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agents
+    attributes:
+      label: Which agents were involved
+      multiple: true
+      options: [Claude Code, Codex, OpenCode, Not agent-specific]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sandbox
+    attributes:
+      label: Was this against real config or a sandbox
+      options:
+        - Sandbox (--demo or AGENTPACK_HOME)
+        - Real agent configuration
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: AgentPack version
+      placeholder: "2.0.0, or a commit SHA if built from source"
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: OS and Node version
+      placeholder: "Windows 11 26200, Node 22.18.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output
+      description: >
+        Relevant output from the Advanced/Logs drawer, the CLI, or a failing check.
+        Credentials are redacted from AgentPack's own logs, but read before pasting.
+      render: text
