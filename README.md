@@ -20,7 +20,7 @@ Download the portable `.exe` from [Releases](https://github.com/darkaimzzz/Agent
 Releases are unsigned, so Windows SmartScreen will warn on first launch — *More info* → *Run anyway*. Each release publishes a SHA-256 you can check:
 
 ```powershell
-Get-FileHash .\AgentPack-2.0.0-win-x64.exe -Algorithm SHA256
+Get-FileHash .\AgentPack-2.1.0-win-x64.exe -Algorithm SHA256
 ```
 
 ### From source
