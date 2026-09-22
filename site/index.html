@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentPack — a cross-agent package manager for AI coding capabilities</title>
+<meta name="description" content="Install and manage MCP servers and plugins across Claude Code, Codex and OpenCode. One capability, three config formats, every server verified, every change reversible.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23cf2434' stroke='%231a1a1a' stroke-width='7'/><circle cx='36' cy='34' r='15' fill='%23f2efe9' stroke='%231a1a1a' stroke-width='5'/><circle cx='36' cy='34' r='8' fill='%2329a8e0'/></svg>">
+
+<meta property="og:title" content="AgentPack">
+<meta property="og:description" content="A cross-agent package manager for AI coding capabilities. Claude Code, Codex, OpenCode.">
+<meta property="og:type" content="website">
+
+<style>
+@font-face{
+  font-family:"Pixel";
+  src:url("./press-start-2p.woff2") format("woff2");
+  font-display:swap;
+}
+
+:root{
+  --bezel:#cf2434;
+  --bezel-hi:#e04b45;
+  --bezel-lo:#a4101e;
+  --case-line:#7a1616;
+  --outline:#1a1a1a;
+
+  --panel:#f4ecdc;
+  --panel-2:#e9dfc9;
+  --line:#cbbfa6;
+  --text:#26221d;
+  --muted:#6f6558;
+  --well:#e2d7bf;
+
+  --screen:#0f1216;
+  --phos:#7ee0a8;
+
+  --accent:#29a8e0;
+  --gold:#d4a017;
+  --ok:#4caf50;
+
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --pixel:"Pixel","Segoe UI",system-ui,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bezel);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -10%, var(--bezel-hi), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(0,0,0,.03) 0 2px, transparent 2px 6px);
+  color:var(--text);
+  font:16px/1.65 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* ---------- device chrome ---------- */
+.case{
+  background:var(--bezel);
+  border:6px solid var(--outline);
+  border-radius:22px;
+  box-shadow:0 0 0 3px var(--bezel-lo) inset, 0 18px 0 -4px var(--bezel-lo), 0 30px 60px rgba(0,0,0,.45);
+  position:relative;
+  overflow:hidden;
+}
+/* the angular notch across the top-right, as on the real device */
+.case::after{
+  content:"";position:absolute;top:14px;right:18px;width:96px;height:58px;
+  border-top:5px solid var(--bezel-lo);border-right:5px solid var(--bezel-lo);
+  border-top-right-radius:14px;
+  pointer-events:none;
+}
+
+.lens{
+  width:76px;height:76px;border-radius:50%;
+  background:#f2efe9;border:5px solid var(--outline);
+  display:grid;place-items:center;flex:none;
+  box-shadow:0 3px 0 rgba(0,0,0,.25);
+}
+.lens i{
+  width:48px;height:48px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%, #bfe6fb, #29a8e0 55%, #1b6f99);
+  border:3px solid var(--outline);display:block;
+}
+.lamps{display:flex;gap:11px}
+.lamp{
+  width:19px;height:19px;border-radius:50%;
+  border:3px solid var(--outline);
+  animation:blink 3.2s infinite;
+}
+.lamp.r{background:#e04b45}
+.lamp.y{background:#f0b429;animation-delay:.28s}
+.lamp.g{background:#4caf50;animation-delay:.56s}
+@keyframes blink{0%,82%,100%{filter:brightness(1)}86%{filter:brightness(1.9)}}
+@media (prefers-reduced-motion:reduce){.lamp{animation:none}}
+
+/* ---------- top bar ---------- */
+header{padding:26px 0 8px}
+.bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{
+  font-family:var(--pixel);font-size:19px;letter-spacing:.02em;
+  color:#fff;text-shadow:3px 3px 0 var(--bezel-lo),0 0 18px rgba(0,0,0,.3);
+  margin-right:auto;
+}
+.ghlink{
+  display:inline-flex;align-items:center;gap:9px;
+  background:var(--panel);border:4px solid var(--outline);border-radius:10px;
+  padding:9px 15px;font-weight:600;text-decoration:none;font-size:14px;
+  box-shadow:0 4px 0 var(--outline);
+  transition:transform .08s,box-shadow .08s;
+}
+.ghlink:hover{transform:translateY(2px);box-shadow:0 2px 0 var(--outline)}
+.ghlink svg{width:18px;height:18px}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:0;margin:20px 0 54px}
+.hero>*{padding:38px;min-width:0}
+.hero .left{border-right:6px solid var(--outline)}
+
+.eyebrow{
+  font-family:var(--pixel);font-size:10px;line-height:1.9;
+  color:var(--bezel-lo);background:var(--panel);
+  border:3px solid var(--outline);border-radius:6px;
+  padding:6px 10px;display:inline-block;margin-bottom:20px;
+}
+h1{
+  font-size:clamp(28px,4.4vw,46px);line-height:1.1;margin:0 0 18px;
+  color:#fff;text-shadow:0 3px 0 var(--bezel-lo);letter-spacing:-.01em;
+}
+.lede{color:#ffe9e9;font-size:17px;margin:0 0 26px;max-width:46ch}
+
+/* the dark display */
+.screen{
+  background:var(--screen);
+  border:5px solid var(--outline);border-radius:10px;
+  padding:20px;font-family:var(--mono);font-size:13.5px;line-height:1.75;
+  color:var(--phos);position:relative;overflow-x:auto;overflow-y:hidden;white-space:nowrap;
+  box-shadow:0 0 0 4px #f2efe9, 0 0 34px rgba(126,224,168,.14) inset;
+}
+.screen::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(to bottom, rgba(126,224,168,.07) 0 1px, transparent 1px 3px);
+}
+.screen .k{color:#8fb7d8}
+.screen .d{color:#6f7f75}
+
+/* download */
+.dl{margin-top:26px}
+.btn-dl{
+  display:flex;align-items:center;gap:16px;width:100%;
+  background:var(--ok);color:#06240c;
+  border:5px solid var(--outline);border-radius:12px;
+  padding:18px 22px;text-decoration:none;text-align:left;
+  box-shadow:0 7px 0 #256428, 0 12px 26px rgba(0,0,0,.3);
+  transition:transform .09s,box-shadow .09s;
+}
+.btn-dl:hover{transform:translateY(3px);box-shadow:0 4px 0 #256428,0 8px 18px rgba(0,0,0,.3)}
+.btn-dl:active{transform:translateY(7px);box-shadow:0 0 0 #256428}
+.btn-dl .arrow{
+  width:42px;height:42px;flex:none;border-radius:50%;
+  background:#06240c;color:var(--ok);display:grid;place-items:center;font-size:21px;
+}
+.btn-dl b{display:block;font-family:var(--pixel);font-size:13px;line-height:1.7}
+.btn-dl span{display:block;font-size:12.5px;font-family:var(--mono);opacity:.82;margin-top:3px}
+.dl-note{
+  margin:14px 2px 0;font-size:12.5px;color:#ffd9d9;font-family:var(--mono);line-height:1.7;
+}
+.dl-note code{display:block;margin-top:4px;background:rgba(0,0,0,.28);padding:5px 7px;border-radius:4px;font-size:10.5px;letter-spacing:.02em;word-break:break-all}
+
+/* ---------- cream section ---------- */
+.sheet{
+  background:var(--panel);
+  border:6px solid var(--outline);border-radius:18px;
+  box-shadow:0 14px 0 -3px var(--bezel-lo),0 26px 50px rgba(0,0,0,.35);
+  padding:40px;margin-bottom:46px;
+}
+.sheet h2{
+  font-family:var(--pixel);font-size:15px;line-height:1.8;margin:0 0 6px;color:var(--bezel-lo);
+}
+.sheet .sub{color:var(--muted);margin:0 0 30px;font-size:15px}
+
+/* agent entries */
+.entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.entry{
+  background:var(--well);border:4px solid var(--outline);border-radius:12px;padding:18px;
+  box-shadow:0 5px 0 rgba(0,0,0,.22);
+}
+.entry .no{font-family:var(--pixel);font-size:10px;color:var(--muted)}
+.entry h3{margin:7px 0 10px;font-size:18px}
+.entry dl{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.85}
+.entry dt{color:var(--muted);display:inline}
+.entry dd{margin:0 0 4px;display:inline}
+.entry dd::after{content:"";display:block}
+
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-top:8px}
+.step{
+  background:var(--panel-2);border:4px solid var(--outline);border-radius:10px;padding:16px;
+  position:relative;
+}
+.step b{font-family:var(--pixel);font-size:10px;line-height:1.8;color:var(--bezel-lo);display:block;margin-bottom:8px}
+.step p{margin:0;font-size:14px;color:var(--text)}
+.step i{
+  position:absolute;top:-13px;right:12px;
+  width:26px;height:26px;border-radius:50%;background:var(--accent);
+  border:3px solid var(--outline);color:#fff;display:grid;place-items:center;
+  font-family:var(--pixel);font-size:9px;font-style:normal;
+}
+
+/* stat keypad */
+.keys{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:26px}
+.key{
+  background:var(--accent);border:4px solid var(--outline);border-radius:8px;
+  padding:15px;color:#fff;box-shadow:0 5px 0 #17658a;text-align:center;
+}
+.key b{display:block;font-family:var(--pixel);font-size:19px;line-height:1.5}
+.key span{display:block;font-size:12px;margin-top:6px;opacity:.92}
+
+/* requirements list */
+.req{list-style:none;margin:0;padding:0;font-size:14.5px}
+.req li{padding:11px 0;border-bottom:2px solid var(--line);display:flex;gap:12px;align-items:flex-start}
+.req li:last-child{border-bottom:0}
+.req li::before{content:"▸";color:var(--bezel-lo);font-weight:700;flex:none}
+.req code{font-family:var(--mono);font-size:13px;background:var(--well);padding:2px 6px;border-radius:4px}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:34px}
+
+footer{padding:14px 0 60px;color:#ffd9d9;font-size:13.5px;text-align:center;line-height:2}
+footer a{color:#fff}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr}
+  .hero .left{border-right:0;border-bottom:6px solid var(--outline)}
+  .hero>*{padding:28px}
+  .sheet{padding:26px}
+  .split{grid-template-columns:1fr;gap:26px}
+  .case::after{display:none}
+  .btn-dl b{font-size:11px}
+  .btn-dl{padding:16px 18px;gap:13px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="bar">
+      <div class="lens"><i></i></div>
+      <div class="lamps"><span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span></div>
+      <div class="brand">AgentPack</div>
+      <a class="ghlink" href="https://github.com/darkaimzzz/AgentPack">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33C3.79 14.31 3.32 13 3.32 13c-.36-.93-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+        Source
+      </a>
+    </div>
+  </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="case hero">
+    <div class="left">
+      <span class="eyebrow">Windows · Portable · MIT</span>
+      <h1>One capability.<br>Every coding agent.</h1>
+      <p class="lede">
+        Claude Code, Codex and OpenCode each store MCP configuration somewhere different,
+        in a different format. AgentPack writes one capability into all three, launches
+        every server to confirm it actually answers, and can undo the whole run.
+      </p>
+
+      <div class="screen">
+<span class="d">$ agentpack install --pack local</span><br>
+<span class="k">detect</span>  claude ✓  codex ✓  opencode ✓<br>
+<span class="k">scan</span>    next.js · supabase · git<br>
+<span class="k">write</span>   .claude.json · config.toml · opencode.jsonc<br>
+<span class="k">verify</span>  playwright 24 · filesystem 14 · thinking 1<br>
+<span class="k">ready</span>   39 tools · ~9,000 est. tokens<br>
+<span class="d">rollback available</span>
+      </div>
+
+      <div class="dl">
+        <a class="btn-dl" id="dl" href="https://github.com/darkaimzzz/AgentPack/releases/latest">
+          <span class="arrow">↓</span>
+          <span>
+            <b>Download for Windows</b>
+            <span id="dl-meta">Latest release · portable .exe</span>
+          </span>
+        </a>
+        <p class="dl-note">
+          Unsigned, so SmartScreen warns once — <em>More info → Run anyway</em>.<br>
+          SHA-256 <code id="sha">loading…</code>
+        </p>
+      </div>
+    </div>
+
+    <div class="right" style="background:var(--bezel-lo)">
+      <div class="screen" style="box-shadow:0 0 0 4px #f2efe9;">
+<span class="k">// what it replaces</span><br><br>
+<span class="d">1.</span> find the right MCP server<br>
+<span class="d">2.</span> read its install docs<br>
+<span class="d">3.</span> check it supports your agent<br>
+<span class="d">4.</span> install node / python deps<br>
+<span class="d">5.</span> hand-edit JSON<br>
+<span class="d">6.</span> hand-edit TOML<br>
+<span class="d">7.</span> hand-edit JSONC<br>
+<span class="d">8.</span> paste credentials into each<br>
+<span class="d">9.</span> restart the agent<br>
+<span class="d">10.</span> hope it worked<br>
+<span class="d">11.</span> repeat for the next agent<br><br>
+<span class="k">// what it becomes</span><br><br>
+scan → review → install → verified ✓
+      </div>
+
+      <div class="keys">
+        <div class="key"><b>12</b><span>MCP servers</span></div>
+        <div class="key"><b>18</b><span>plugins</span></div>
+        <div class="key"><b>3</b><span>agents</span></div>
+        <div class="key"><b>4</b><span>packs</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section class="sheet" id="how">
+    <h2>How it works</h2>
+    <p class="sub">Seven stages. Nothing is reported as working until it has been observed working.</p>
+    <div class="pipe">
+      <div class="step"><i>1</i><b>Detect</b><p>Finds installed agents and reads your project stack — with the file that proves each signal.</p></div>
+      <div class="step"><i>2</i><b>Recommend</b><p>Deterministic rules, not a model. You can read them and predict the output.</p></div>
+      <div class="step"><i>3</i><b>Compile</b><p>One capability definition becomes JSON, TOML and JSONC — each written surgically.</p></div>
+      <div class="step"><i>4</i><b>Install</b><p>Configs are backed up first. Credentials are requested only where declared.</p></div>
+      <div class="step"><i>5</i><b>Verify</b><p>Each server is launched and asked for its tool list. Not "we wrote a file".</p></div>
+      <div class="step"><i>6</i><b>Manage</b><p>Switch a capability off without uninstalling it. Context cost is measured, not guessed.</p></div>
+      <div class="step"><i>7</i><b>Roll back</b><p>Restores original bytes, keeps edits you made afterwards, refuses when it cannot prove ownership.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ AGENTS ============ -->
+  <section class="sheet">
+    <h2>Supported agents</h2>
+    <p class="sub">Adding a fourth is an adapter, not a rewrite.</p>
+    <div class="entries">
+      <div class="entry">
+        <div class="no">No. 001</div>
+        <h3>Claude Code</h3>
+        <dl>
+          <dt>config ·</dt><dd> ~/.claude.json</dd>
+          <dt>format ·</dt><dd> JSON</dd>
+          <dt>plugins ·</dt><dd> yes</dd>
+          <dt>dormancy ·</dt><dd> entry stored and restored</dd>
+        </dl>
+      </div>
+      <div class="entry">
+        <div class="no">No. 002</div>
+        <h3>Codex</h3>
+        <dl>
+          <dt>config ·</dt><dd> ~/.codex/config.toml</dd>
+          <dt>format ·</dt><dd> TOML</dd>
+          <dt>plugins ·</dt><dd> yes</dd>
+          <dt>dormancy ·</dt><dd> native enabled flag</dd>
+        </dl>
+      </div>
+      <div class="entry">
+        <div class="no">No. 003</div>
+        <h3>OpenCode</h3>
+        <dl>
+          <dt>config ·</dt><dd> ~/.config/opencode/</dd>
+          <dt>format ·</dt><dd> JSONC</dd>
+          <dt>plugins ·</dt><dd> different system</dd>
+          <dt>dormancy ·</dt><dd> native enabled flag</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REQUIREMENTS / HONESTY ============ -->
+  <section class="sheet">
+    <div class="split">
+      <div>
+        <h2>Before you install</h2>
+        <p class="sub">What it needs.</p>
+        <ul class="req">
+          <li><span><b>Windows x64.</b> macOS and Linux aren't supported yet.</span></li>
+          <li><span><b>Node.js 22.17+</b> with npm on PATH. The app bundles Electron, but launches MCP servers with your Node.</span></li>
+          <li><span>Internet on first install, to fetch MCP packages.</span></li>
+          <li><span>It writes to your <b>real</b> agent configs. Every write is backed up and reversible — or pass <code>--demo</code> for a sandbox.</span></li>
+        </ul>
+      </div>
+      <div>
+        <h2>What it won't claim</h2>
+        <p class="sub">Stated, not hidden.</p>
+        <ul class="req">
+          <li><span>A healthy server means it started and returned a tool list — <b>not</b> that your credentials are valid.</span></li>
+          <li><span>Plugin status reads <b>Configured</b>, never Verified. A plugin loads inside the agent, out of reach.</span></li>
+          <li><span>Context figures are estimates — schema characters ÷ 4, not billed tokens.</span></li>
+          <li><span>Release binaries are unsigned.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <a href="https://github.com/darkaimzzz/AgentPack">GitHub</a> ·
+    <a href="https://github.com/darkaimzzz/AgentPack/releases">Releases</a> ·
+    <a href="https://github.com/darkaimzzz/AgentPack/blob/main/CONTRIBUTING.md">Contributing</a> ·
+    <a href="https://github.com/darkaimzzz/AgentPack/security">Security</a> ·
+    <a href="https://github.com/darkaimzzz/AgentPack/blob/main/LICENSE">MIT</a>
+    <br>
+    <span style="opacity:.75">Not affiliated with Nintendo, Anthropic, OpenAI or SST.</span>
+  </footer>
+
+</div>
+
+<script>
+// Resolve the newest release at view time so the button never points at a stale
+// version. The href already works without this (it falls through to the
+// releases page), so a rate-limited or offline API costs the visitor nothing.
+(async () => {
+  const btn = document.getElementById('dl');
+  const meta = document.getElementById('dl-meta');
+  const sha = document.getElementById('sha');
+  try {
+    const r = await fetch('https://api.github.com/repos/darkaimzzz/AgentPack/releases/latest');
+    if (!r.ok) throw new Error(r.status);
+    const rel = await r.json();
+    const exe = (rel.assets || []).find(a => a.name.endsWith('.exe'));
+    if (exe) {
+      btn.href = exe.browser_download_url;
+      const mb = (exe.size / 1048576).toFixed(0);
+      meta.textContent = `${rel.tag_name} · ${mb} MB · portable .exe`;
+    } else {
+      meta.textContent = `${rel.tag_name} · view release`;
+    }
+    const m = (rel.body || '').match(/SHA-256:\s*`?([0-9a-fA-F]{64})`?/);
+    sha.textContent = m ? m[1] : 'see release notes';
+  } catch {
+    meta.textContent = 'Latest release · portable .exe';
+    sha.textContent = 'see release notes';
+  }
+})();
+</script>
+</body>
+</html>

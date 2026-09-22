@@ -4,3 +4,4 @@ out/
 release/
 .env*
 .qa/
+.playwright-mcp/
