@@ -13,7 +13,7 @@ const STEPS: Array<[Step, string]> = [
 
 /**
  * Explicit back transitions. Stepping backwards through STEPS would land on
- * 'install' — a transient state with no controls — and strand the user.
+ * 'install', a transient state with no controls, and strand the user.
  */
 const BACK: Partial<Record<Step, Step>> = {
   project: 'detect',
@@ -93,7 +93,7 @@ export default function App() {
     setBusy(true)
     // Build the request from the SELECTED capabilities' declared fields only.
     // Iterating retained `values` instead would reclassify a deselected
-    // capability's secret as an ordinary input — and inputs are persisted to the
+    // capability's secret as an ordinary input, and inputs are persisted to the
     // ledger. Never let selection state decide what counts as a secret.
     const secrets: Record<string, string> = {}
     const inputs: Record<string, string> = {}
@@ -124,13 +124,13 @@ export default function App() {
   const stepIndex = STEPS.findIndex(([s]) => s === step)
 
   /**
-   * Window controls live in the main process. If that channel is missing — the
+   * Window controls live in the main process. If that channel is missing, the
    * usual cause is a renderer that hot-reloaded while an older main process
-   * kept running — say so, rather than leaving a button that does nothing.
+   * kept running, say so, rather than leaving a button that does nothing.
    */
   const windowCmd = (name: 'minimizeWindow' | 'toggleMaximizeWindow' | 'closeWindow') => {
     window.agentpack[name]().catch((e: Error) =>
-      setError(`Window controls are unavailable (${e.message}). Restart AgentPack — this happens when the app is left running across a code change.`))
+      setError(`Window controls are unavailable (${e.message}). Restart AgentPack, this happens when the app is left running across a code change.`))
   }
 
   return (
@@ -213,7 +213,7 @@ export default function App() {
           setError(null)
           try {
             const r = await window.agentpack.rollback(report.ledgerId)
-            // A null result means nothing was undone — do not claim success.
+            // A null result means nothing was undone, do not claim success.
             if (r) setRolledBack(true)
             else setError('Nothing to roll back: this run was already undone.')
           } catch (e) {
@@ -234,7 +234,7 @@ export default function App() {
 function Detect({ agents }: { agents: DetectedAgent[] }) {
   const found = agents.filter((a) => a.detected).length
   // agents is empty only until detection returns; once it has, an empty result
-  // means none are installed — a real answer, not a loading state.
+  // means none are installed, a real answer, not a loading state.
   const loading = agents.length === 0
   return (
     <>
@@ -251,7 +251,7 @@ function Detect({ agents }: { agents: DetectedAgent[] }) {
           <div className="h">Nothing to configure</div>
           <div className="meta">
             AgentPack works with Claude Code, Codex and OpenCode. Install one, then reopen
-            AgentPack — detection runs at startup.
+            AgentPack, detection runs at startup.
           </div>
         </div>
       )}
@@ -294,7 +294,7 @@ function Project({ analysis }: { analysis: Analysis }) {
 
 /* ---------------------------------------------------------------- screen 3 */
 
-/** MCP servers and plugins are different mechanisms — the UI says so. */
+/** MCP servers and plugins are different mechanisms, the UI says so. */
 const KIND = {
   mcp: {
     label: 'MCP servers',
@@ -303,7 +303,7 @@ const KIND = {
   },
   plugin: {
     label: 'Plugins',
-    blurb: 'Skills and commands loaded from a git marketplace, inside the agent itself. Claude Code and Codex only — OpenCode has no marketplace system.',
+    blurb: 'Skills and commands loaded from a git marketplace, inside the agent itself. Claude Code and Codex only, OpenCode has no marketplace system.',
     cls: 'plugin',
   },
 } as const
@@ -437,7 +437,7 @@ function Plan({
       <h2>Install plan</h2>
       <p className="sub">Review the selected capabilities and credentials. Existing entries with different settings are left unchanged.</p>
 
-      <div className="section-label">Files to be modified — each backed up first</div>
+      <div className="section-label">Files to be modified, each backed up first</div>
       {targets.map((t) => (
         <div key={t.key} className="card row">
           <div className="dot idle" />
@@ -466,7 +466,7 @@ function Plan({
                 <div className="meta mono" style={{ marginTop: 4 }}>
                   {c.type === 'mcp'
                     ? `${c.install?.command} ${(c.install?.args ?? []).join(' ').replace('${projectDir}', dir)}`
-                    : `${c.plugin?.name}@${c.plugin?.marketplace} — github.com/${c.plugin?.repo}`}
+                    : `${c.plugin?.name}@${c.plugin?.marketplace}, github.com/${c.plugin?.repo}`}
                 </div>
                 {!!c.requires?.binaries?.length && (
                   <div className="caveat">requires the {c.requires.binaries.join(', ')} CLI on PATH</div>
@@ -604,7 +604,7 @@ function Report({
       : r.status === 'conflict' ? 'warn'
       : r.status === 'unsupported' ? 'skip'
       : r.status === 'already-present' ? 'skip' : 'ok'
-    const label = !r ? '—'
+    const label = !r ? '-'
       : r.status === 'installed' ? 'Installed'
       : r.status === 'already-present' ? 'Already there'
       : r.status === 'conflict' ? 'Conflict'

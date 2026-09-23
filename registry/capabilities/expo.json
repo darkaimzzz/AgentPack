@@ -3,7 +3,7 @@
   "name": "Expo",
   "type": "plugin",
   "description": "Official Expo skills for building, deploying, upgrading and debugging React Native apps.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

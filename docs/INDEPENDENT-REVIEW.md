@@ -1,4 +1,4 @@
-# Independent review — v1.6.0
+# Independent review: v1.6.0
 
 An external agent reviewed the codebase at tag `v1.6.0`
 (`760c702ca236b3597506a2fcd5f89e653791bb19`) with no access to the decisions
@@ -27,7 +27,7 @@ The reviewer's own words follow, unedited.
 
 ---
 
-# AgentPack v1.6.0 — independent review and live test results
+# AgentPack v1.6.0: independent review and live test results
 
 Reviewed 12 September 2026, commit `760c702ca236b3597506a2fcd5f89e653791bb19` (tag v1.6.0). Review only: no implementation files changed. Reproduction fixtures use isolated homes, synthetic credentials and, where stated, fault injection.
 
@@ -39,7 +39,7 @@ This review does not establish authenticated GitHub/Supabase operation, actual c
 
 ## 2. Confirmed defects
 
-### P1 — A failed post-write snapshot defeats rollback; dormancy can also drop its recovery entry
+### P1: A failed post-write snapshot defeats rollback; dormancy can also drop its recovery entry
 
 Locations: `electron/core/installer/install.ts:182`, `electron/core/installer/backup.ts:67`, `electron/core/installer/install.ts:262`, `electron/core/clm/state.ts:208`.
 
@@ -53,7 +53,7 @@ Dormancy case: seed an active Claude filesystem entry, inject an ENOSPC exceptio
 
 Expected: a mutation without a completed post-image must remain recoverable and must not be marked undone unless restoration is established. Failed deactivation must retain recovery state.
 
-### P1 — Malformed existing TOML exposes pre-existing credentials in errors
+### P1: Malformed existing TOML exposes pre-existing credentials in errors
 
 Locations: `electron/core/agents/codex.ts:173` (also the MCP write path at line 219), `electron/core/installer/install.ts:187`.
 
@@ -63,7 +63,7 @@ Actual: `leakedInReport:true`, `leakedInProgress:true`. The error includes the o
 
 Expected: display a safe parse diagnostic without copying credential-bearing source lines into reports/progress. Only a synthetic sentinel was used in this test.
 
-### P1 — Watcher survives its reported failure and still activates capabilities after Stop
+### P1: Watcher survives its reported failure and still activates capabilities after Stop
 
 Locations: `electron/core/clm/trigger.ts:113`, `electron/ipc/handlers.ts:79`.
 
@@ -73,7 +73,7 @@ Actual: status reports `Automatic activation failed. Check agent configuration a
 
 Expected: an errored watcher must be closed or remain stoppable. No activation/config mutation should occur after Stop.
 
-### P2 — Duplicate JSONC sections produce Installed/Verified with no readable installed entry
+### P2: Duplicate JSONC sections produce Installed/Verified with no readable installed entry
 
 Locations: `electron/core/agents/json-config.ts:53`, `electron/core/installer/install.ts:182`.
 
@@ -83,7 +83,7 @@ Actual: `status:"installed"`, `health:"verified"`, `liveEntry:null`. The edit in
 
 Expected: reject duplicate sections as ambiguous or validate the effective saved entry before claiming success. This test uses a synthetic server to isolate config handling, not to claim real Memory-server validation.
 
-### P2 — Valid quoted marketplace tables prevent Codex plugin installation
+### P2: Valid quoted marketplace tables prevent Codex plugin installation
 
 Location: `electron/core/agents/codex.ts:158`.
 
@@ -93,7 +93,7 @@ Actual: `validBefore:true`, install fails with `trying to redefine an already de
 
 Expected: recognize the existing marketplace regardless of legal TOML key quoting.
 
-### P2 — Rehearsal falsely passes a partial cross-agent conflict
+### P2: Rehearsal falsely passes a partial cross-agent conflict
 
 Locations: `electron/core/rehearse.ts:66`, `electron/core/rehearse.ts:80`.
 
@@ -103,7 +103,7 @@ Actual output: `✓ run 1 15736ms`, `4 capabilities · 3 configs touched · rest
 
 Expected: the rehearsal must report the unresolved capability/agent conflict. This is a false-positive success, beyond the already known inconvenience of running rehearsal against a dirty home.
 
-### P3 — Rollback removes comments added after installation
+### P3: Rollback removes comments added after installation
 
 Location: `electron/core/installer/backup.ts:84`.
 

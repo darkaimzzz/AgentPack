@@ -64,7 +64,7 @@ if (cmd === 'detect') {
 
   const recs = recommend(scan)
   console.log('\nRecommended')
-  if (!recs.length) console.log(dim('  nothing — no rule matched'))
+  if (!recs.length) console.log(dim('  nothing, no rule matched'))
   for (const r of recs) {
     const needs = [
       ...(r.capability.inputs ?? []).map((i) => i.key),
@@ -114,7 +114,7 @@ if (cmd === 'detect') {
     const h = c.health
     const needsCreds = Boolean(c.capability.secrets?.length)
     if (h.status === 'configured') {
-      console.log(ok(`${c.capability.name.padEnd(20)} ${dim('configured — plugin loads inside the agent, not verifiable from here')}`))
+      console.log(ok(`${c.capability.name.padEnd(20)} ${dim('configured, plugin loads inside the agent, not verifiable from here')}`))
     } else if (h.reachable) {
       console.log(ok(`${c.capability.name.padEnd(20)} ${h.tools.length} tools ${dim(`${h.server?.name ?? ''} ${h.server?.version ?? ''} · ${h.durationMs}ms`)}`))
       // Honest about the limit of this check: tools/list answers before most
@@ -125,7 +125,7 @@ if (cmd === 'detect') {
       console.log(bad(`${c.capability.name.padEnd(20)} ${h.error}`))
     }
     for (const r of c.results) {
-      const line = `  ${adapters[r.agent].name.padEnd(13)} ${r.status}${r.error ? ` — ${r.error}` : ''}`
+      const line = `  ${adapters[r.agent].name.padEnd(13)} ${r.status}${r.error ? `, ${r.error}` : ''}`
       console.log(r.status === 'failed' ? red(line) : r.status === 'unsupported' ? dim(line) : line)
       if (r.status === 'failed' || r.status === 'conflict') allOk = false
     }
@@ -202,7 +202,7 @@ if (cmd === 'detect') {
     process.exit(1)
   }
   const agents = manifest.targets
-  console.log(`Importing "${manifest.name}" — ${manifest.capabilities.join(', ')}\n`)
+  console.log(`Importing "${manifest.name}", ${manifest.capabilities.join(', ')}\n`)
   const report = await install({
     capabilityIds: manifest.capabilities,
     agents,
@@ -221,7 +221,7 @@ if (cmd === 'detect') {
       importOk = false
     }
     for (const r of c.results.filter((x) => x.status === 'failed' || x.status === 'conflict')) {
-      console.log(red(`    ${adapters[r.agent].name.padEnd(13)} ${r.status} — ${r.error}`))
+      console.log(red(`    ${adapters[r.agent].name.padEnd(13)} ${r.status}, ${r.error}`))
       importOk = false
     }
   }
@@ -257,7 +257,7 @@ if (cmd === 'detect') {
       const r = setState(capId, agent, sub === 'on' ? 'active' : 'dormant')
       const label = `${adapters[agent].name.padEnd(13)} ${r.from} → ${r.to}`
       if (r.success) console.log(ok(`${label}${r.noop ? dim(' (already)') : ''}`))
-      else { failures++; console.log(bad(`${label} — ${r.error}`)) }
+      else { failures++; console.log(bad(`${label}, ${r.error}`)) }
     }
     process.exit(failures ? 1 : 0)
   } else if (sub === 'profiles') {
@@ -275,8 +275,8 @@ if (cmd === 'detect') {
     console.log(`Profile: ${plan.profile.name}\n`)
     for (const a of plan.activate) console.log(green(`  + ${a.capabilityId} ${dim('→ ' + a.agent)}`))
     for (const d of plan.deactivate) console.log(`  - ${d.capabilityId} ${dim('→ ' + d.agent)}`)
-    for (const u of plan.unavailable) console.log(dim(`  ! ${u.capabilityId} → ${u.agent} (not installed — cannot activate)`))
-    for (const b of plan.blocked) console.log(bad(`${b.agent}: config unreadable — ${b.error}`))
+    for (const u of plan.unavailable) console.log(dim(`  ! ${u.capabilityId} → ${u.agent} (not installed, cannot activate)`))
+    for (const b of plan.blocked) console.log(bad(`${b.agent}: config unreadable, ${b.error}`))
     if (!plan.activate.length && !plan.deactivate.length) console.log(dim('  nothing to change'))
     if (rest.includes('--dry')) process.exit(0)
 
@@ -286,7 +286,7 @@ if (cmd === 'detect') {
       console.log(bad(`${m.capabilityId} / ${m.agent}: ${m.error}`))
     }
     console.log(r.status === 'ok' ? ok(`applied ${r.results.length} change(s)`)
-      : r.status === 'partial' ? `${red('partial')} — some changes failed; see above`
+      : r.status === 'partial' ? `${red('partial')}, some changes failed; see above`
       : bad('no changes applied'))
     process.exit(r.status === 'ok' ? 0 : 1)
   } else if (sub === 'watch') {
@@ -298,7 +298,7 @@ if (cmd === 'detect') {
     console.log(dim('\nonly DORMANT capabilities are activated. ctrl-c to stop.\n'))
     startWatching(dir, (e) => {
       console.log(e.result.success
-        ? ok(`${e.capabilityName} activated in ${e.agent} ${dim(`— ${e.path} matched ${e.pattern}`)}`)
+        ? ok(`${e.capabilityName} activated in ${e.agent} ${dim(`- ${e.path} matched ${e.pattern}`)}`)
         : bad(`${e.capabilityName} / ${e.agent}: ${e.result.error}`))
     })
     await new Promise(() => {}) // run until interrupted
@@ -316,8 +316,8 @@ if (cmd === 'detect') {
       const active = row.agents.filter((a) => a.state === 'active').map((a) => a.agent)
       const dormant = row.agents.filter((a) => a.state === 'dormant').map((a) => a.agent)
       const cost = row.cost
-      const label = cost?.source === 'measured' ? cost.toolCount + ' tools · ~' + cost.estimatedTokens.toLocaleString() + ' estimated tokens' : dim(cost?.note ?? 'cost unknown — run: clm measure')
-      const state = active.length ? green('ACTIVE ') : dormant.length ? 'DORMANT' : dim('—      ')
+      const label = cost?.source === 'measured' ? cost.toolCount + ' tools · ~' + cost.estimatedTokens.toLocaleString() + ' estimated tokens' : dim(cost?.note ?? 'cost unknown, run: clm measure')
+      const state = active.length ? green('ACTIVE ') : dormant.length ? 'DORMANT' : dim('-      ')
       console.log('  ' + state + ' ' + row.capability.name.padEnd(22) + ' ' + label)
       if (active.length) console.log(dim('          active in: ' + active.join(', ')))
       if (dormant.length) console.log(dim('          dormant in: ' + dormant.join(', ')))

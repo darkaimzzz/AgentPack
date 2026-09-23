@@ -17,7 +17,7 @@ import type { Capability } from '../types.ts'
  * Encode a TOML string.
  *
  * A literal string keeps Windows paths readable (no doubled backslashes), but
- * it has no escape mechanism at all — so an apostrophe, as in
+ * it has no escape mechanism at all, so an apostrophe, as in
  * `C:\Projects\O'Brien App`, would terminate it early and emit invalid TOML.
  * Fall back to a basic string in that case.
  */
@@ -44,7 +44,7 @@ const read = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8') : '')
  * A TOML parse error, with the source context stripped.
  *
  * smol-toml appends the offending lines to its message to help a human locate
- * the problem. Those lines can be anything already in the user's config —
+ * the problem. Those lines can be anything already in the user's config,
  * including credentials from entries we did not write and therefore cannot
  * redact, since redaction only knows the secrets supplied for the current run.
  * Keep the diagnostic, drop the excerpt.
@@ -164,7 +164,7 @@ export const codex: AgentAdapter = {
     const prev = read(p)
     const { marketplace, repo, name } = cap.plugin!
     const lines: string[] = []
-    // Register the marketplace only if it is not already known — re-declaring
+    // Register the marketplace only if it is not already known, re-declaring
     // an existing TOML table is a parse error. Ask the parser rather than
     // matching a bare header: [marketplaces."x"] and [marketplaces.'x'] are
     // equally legal, and a header regex silently misses both, producing a
@@ -260,7 +260,7 @@ export const codex: AgentAdapter = {
 
 /**
  * Remove `[section.key]` and its sub-tables from a TOML document by splicing
- * lines, leaving every other line — comments included — exactly as it was.
+ * lines, leaving every other line, comments included, exactly as it was.
  *
  * Rollback uses this instead of re-serialising the parsed document: a
  * round-trip through the parser is correct about values and destructive about

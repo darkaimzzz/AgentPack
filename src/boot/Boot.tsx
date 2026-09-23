@@ -6,7 +6,7 @@ import { DexLeft, DexRight, DexHinge } from './Dex.tsx'
  * camera pushes in, then pulls back and leaves the wordmark sitting in the
  * app's own header.
  *
- * The app renders underneath this from the first frame — detection and registry
+ * The app renders underneath this from the first frame, detection and registry
  * IPC are already in flight while it plays, so the intro costs no startup time.
  * Nothing here gates the app.
  */
@@ -23,8 +23,8 @@ const PUSH = 2.6
  * the viewer's motion preference decides.
  *
  * That override is load-bearing rather than decorative: Windows reports
- * "animation effects" off far more often than people realise — it is off on
- * this development machine — and without a way to opt back in the intro would
+ * "animation effects" off far more often than people realise, it is off on
+ * this development machine, and without a way to opt back in the intro would
  * silently never play on the very machine it was built for.
  */
 export function shouldSkipBoot(): boolean {
@@ -75,7 +75,7 @@ export default function Boot({ onDone }: { onDone?: () => void }) {
       root.style.setProperty('--dy', `${s.top + s.height / 2 - (t.top + mh / 2)}px`)
     }
 
-    // Measure exactly once, before anything is transformed — and only after the
+    // Measure exactly once, before anything is transformed, and only after the
     // pixel font is in, or the width would be the fallback's. The race keeps a
     // font that never resolves from stalling startup.
     let started = false

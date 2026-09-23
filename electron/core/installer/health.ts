@@ -25,7 +25,7 @@ const PROTOCOL = '2024-11-05' // widest server support; capable servers negotiat
  *
  * This is the health check that matters. "The config entry exists" only proves
  * we wrote a file; this proves the capability actually works (CLAUDE.md §16).
- * Raw JSON-RPC on purpose — no SDK dependency for ~80 lines.
+ * Raw JSON-RPC on purpose, no SDK dependency for ~80 lines.
  */
 export async function probe(opts: {
   command: string
@@ -47,7 +47,7 @@ export async function probe(opts: {
       env: {
         // Use the npx cache when it already has the pinned version. Every
         // capability names an exact version, so a registry round-trip on each
-        // health check buys nothing — and when the registry is unreachable or
+        // health check buys nothing, and when the registry is unreachable or
         // its certificate will not validate, npm retries for over a minute
         // before falling back to that same cache. The network is still used
         // when a package is genuinely missing; this only skips revalidating
@@ -75,7 +75,7 @@ export async function probe(opts: {
 
     const failAll = (msg: string) => {
       const tail = stderr.trim().split('\n').slice(-4).join(' | ')
-      const err = redact(tail ? `${msg} — ${tail}` : msg, secretValues)
+      const err = redact(tail ? `${msg}, ${tail}` : msg, secretValues)
       for (const p of pending.values()) p.fail(new Error(err))
       pending.clear()
     }
@@ -99,7 +99,7 @@ export async function probe(opts: {
         if (!waiter) continue
         pending.delete(msg.id)
         // A server can echo a supplied credential back inside a protocol error.
-        // Redact here too — stderr redaction covers a different path entirely.
+        // Redact here too, stderr redaction covers a different path entirely.
         if (msg.error) waiter.fail(new Error(redact(msg.error.message ?? JSON.stringify(msg.error), secretValues)))
         else waiter.ok(msg.result)
       }

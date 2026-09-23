@@ -40,7 +40,7 @@ jobs:
       # for this repository whenever note generation was requested (run 34750521315);
       # creating the release with an explicit body succeeds.
       #
-      # If the release already exists — a re-run after a partial failure — attach the
+      # If the release already exists, a re-run after a partial failure, attach the
       # artifact to it rather than failing the job.
       #
       # Values reach the shell as environment variables rather than being

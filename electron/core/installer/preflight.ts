@@ -36,7 +36,7 @@ export async function preflight(caps: Capability[]): Promise<PreflightResult> {
         (c) => c.install?.command === b.name || c.requires?.binaries?.includes(b.name),
       )
       const note = needs.map((c) => c.requires?.note).find(Boolean)
-      return `${b.name} is not available on PATH — required by ${needs.map((c) => c.name).join(', ')}${note ? `. ${note}` : ''}`
+      return `${b.name} is not available on PATH, required by ${needs.map((c) => c.name).join(', ')}${note ? `. ${note}` : ''}`
     })
   return { ok: problems.length === 0, binaries, problems }
 }

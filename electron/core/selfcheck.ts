@@ -619,7 +619,7 @@ test('QA10: registry packages are pinned to exact versions', () => {
   for (const c of capabilities()) {
     for (const a of c.install?.args ?? []) {
       if (!a.startsWith('@')) continue
-      assert.ok(!a.endsWith('@latest'), `${c.id} uses @latest — not reproducible on demo day`)
+      assert.ok(!a.endsWith('@latest'), `${c.id} uses @latest, not reproducible on demo day`)
       assert.match(a, /@\d[\w.-]*$/, `${c.id} package "${a}" is unpinned`)
     }
   }
@@ -656,7 +656,7 @@ test('a plugin installs into Claude and Codex in their native formats', async ()
   assert.equal(toml.plugins['superpowers@claude-plugins-official'].enabled, true)
   assert.ok(toml.mcp_servers.node_repl, 'pre-existing MCP tables must survive')
 
-  // Both agents use the SAME plugin@marketplace id — worth pinning.
+  // Both agents use the SAME plugin@marketplace id, worth pinning.
   assert.ok('superpowers@claude-plugins-official' in s.enabledPlugins)
   assert.ok('superpowers@claude-plugins-official' in toml.plugins)
   rollbackAll()
@@ -813,7 +813,7 @@ test('CLM dormancy preserves the credential and restores it exactly', async () =
 
   assert.equal(deactivate('supabase', 'claude').success, true)
   const stash = dormantStore.get('supabase', 'claude')
-  assert.ok(stash, 'nothing stashed — the credential would be lost')
+  assert.ok(stash, 'nothing stashed, the credential would be lost')
   assert.equal(stash!.entry.env.SUPABASE_ACCESS_TOKEN, 'sbp_clm_secret')
 
   const back = activate('supabase', 'claude')
@@ -1084,7 +1084,7 @@ test('OpenCode dormancy uses enabled:false and never stashes a credential', asyn
   assert.equal(deactivate('supabase', 'opencode').success, true)
   assert.equal(runtimeState('supabase', 'opencode'), 'dormant')
 
-  // The entry is still there — disabled, with its credential untouched.
+  // The entry is still there, disabled, with its credential untouched.
   const raw = JSON.parse(readFileSync(adapters.opencode.configPath(), 'utf8'))
   assert.equal(raw.mcp.supabase.enabled, false, 'should have been disabled in place')
   assert.equal(raw.mcp.supabase.environment.SUPABASE_ACCESS_TOKEN, 'sbp_native_secret',

@@ -10,8 +10,8 @@ import type { Capability, CapabilityContextCost, ToolDefinition } from '../types
 /**
  * Estimate what a capability costs in agent context (PRD §9).
  *
- * Every active MCP server's tool definitions — names, descriptions and JSON
- * schemas — are carried in the agent's context each session. We measure that
+ * Every active MCP server's tool definitions, names, descriptions and JSON
+ * schemas, are carried in the agent's context each session. We measure that
  * directly: serialize exactly what tools/list returned and divide by four.
  *
  * This is an ESTIMATE of schema size, not billed API tokens, and must be
@@ -80,7 +80,7 @@ export const cachedCost = (cap: Capability): CapabilityContextCost | null =>
 /**
  * Measure a capability's context cost, using the cache unless `force`.
  *
- * Plugins have no tools/list — their skills and commands load inside the agent
+ * Plugins have no tools/list, their skills and commands load inside the agent
  * process, where we cannot see them. Report that honestly rather than inventing
  * a number (PRD §9: "Do not invent precise numbers").
  */

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 /**
- * The renderer's entire capability surface. Named calls only — no command
+ * The renderer's entire capability surface. Named calls only, no command
  * execution, no filesystem, no arbitrary channel access.
  */
 const api = {

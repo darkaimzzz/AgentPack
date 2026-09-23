@@ -1,7 +1,7 @@
 // Build build/icon.ico from the two SVG sources.
 //
 // A .ico holds several images and Windows picks the nearest size, so the small
-// entries are rendered from icon-small.svg — a deliberately simplified drawing.
+// entries are rendered from icon-small.svg, a deliberately simplified drawing.
 // The taskbar shows 24 or 32px depending on DPI, and detail at that size turns
 // to mush, which is the whole reason for the second source.
 //
@@ -49,7 +49,7 @@ try {
   }
   // png-to-ico writes the icon to stdout.
   const ico = execFileSync(npx, ['--yes', 'png-to-ico', ...pngs], { ...opts, maxBuffer: 64 * 1024 * 1024 })
-  if (ico.length < 1000) throw new Error(`png-to-ico returned ${ico.length} bytes — expected an icon`)
+  if (ico.length < 1000) throw new Error(`png-to-ico returned ${ico.length} bytes, expected an icon`)
   writeFileSync(out, ico)
 
   // Report what the file actually contains, not what was offered: png-to-ico
@@ -57,7 +57,7 @@ try {
   const count = ico.readUInt16LE(4)
   const kept = Array.from({ length: count }, (_, i) => ico[6 + i * 16] || 256).sort((a, b) => a - b)
   if (!kept.includes(16) || !kept.includes(32)) throw new Error(`icon is missing small sizes: ${kept}`)
-  console.log(`wrote ${out} — ${ico.length} bytes, sizes: ${kept.join(', ')}`)
+  console.log(`wrote ${out}, ${ico.length} bytes, sizes: ${kept.join(', ')}`)
 } finally {
   rmSync(tmp, { recursive: true, force: true })
 }

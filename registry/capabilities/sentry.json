@@ -3,7 +3,7 @@
   "name": "Sentry",
   "type": "plugin",
   "description": "Read error reports and stack traces, and debug production issues without leaving the agent.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

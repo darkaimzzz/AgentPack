@@ -3,7 +3,7 @@
   "name": "Firecrawl",
   "type": "mcp",
   "description": "Scrape, crawl and search the web, returning clean markdown rather than raw HTML.",
-  "source": "Firecrawl — npm firecrawl-mcp",
+  "source": "Firecrawl, npm firecrawl-mcp",
   "install": {
     "command": "npx",
     "args": ["-y", "firecrawl-mcp@3.24.0"]

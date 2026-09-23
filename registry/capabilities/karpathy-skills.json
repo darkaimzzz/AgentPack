@@ -3,7 +3,7 @@
   "name": "Karpathy Skills",
   "type": "plugin",
   "description": "Behavioural guidelines drawn from Andrej Karpathy's notes on LLM coding: think before coding, prefer simplicity, avoid common failure modes.",
-  "source": "multica-ai — github multica-ai/andrej-karpathy-skills",
+  "source": "multica-ai, github multica-ai/andrej-karpathy-skills",
   "plugin": {
     "marketplace": "karpathy-skills",
     "repo": "multica-ai/andrej-karpathy-skills",

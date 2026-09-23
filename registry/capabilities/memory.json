@@ -3,7 +3,7 @@
   "name": "Memory",
   "type": "mcp",
   "description": "A local knowledge graph the agent can write to and read back, so facts survive between sessions.",
-  "source": "Anthropic — npm @modelcontextprotocol/server-memory",
+  "source": "Anthropic, npm @modelcontextprotocol/server-memory",
   "install": {
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-memory@2026.8.31"]

@@ -3,7 +3,7 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 /**
  * Deterministic project stack detection (CLAUDE.md §11).
- * File and dependency checks only — no LLM in the golden path. Every signal
+ * File and dependency checks only, no LLM in the golden path. Every signal
  * carries the evidence that produced it, so the UI can always answer "why?".
  */
 
@@ -87,7 +87,7 @@ const findFiles = (root: string, patterns: string[]) => {
  * Find every package.json worth reading: the root, plus workspace members.
  *
  * A monorepo keeps its real dependencies in apps/web or packages/*, so reading
- * only the root manifest finds a name and nothing else — which was exactly the
+ * only the root manifest finds a name and nothing else, which was exactly the
  * failure this function exists to fix.
  */
 function collectManifests(root: string): Array<{ rel: string; pkg: Pkg }> {
@@ -285,7 +285,7 @@ export function scanProject(dir: string): ProjectScan {
   return { dir, signals, isProject: signals.length > 0, manifests: manifests.map((m) => m.rel) }
 }
 
-/** Frontend frameworks — anything here means browser tooling is worth offering. */
+/** Frontend frameworks, anything here means browser tooling is worth offering. */
 export const FRONTEND_SIGNALS = [
   'nextjs', 'nuxt', 'astro', 'remix', 'sveltekit', 'angular',
   'react', 'vue', 'svelte', 'solid', 'vite',

@@ -3,7 +3,7 @@
   "name": "Prisma",
   "type": "plugin",
   "description": "Prisma schema migrations, SQL queries and Postgres database management.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

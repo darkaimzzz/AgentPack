@@ -9,7 +9,7 @@ import { atomicWrite } from '../files.ts'
  * Export what is installed as a reusable manifest, and read one back
  * (CLAUDE.md §19: configure once, reproduce elsewhere).
  *
- * Secret VALUES are never exported — only the names of the variables the
+ * Secret VALUES are never exported, only the names of the variables the
  * recipient must supply. Non-secret `inputs` (a project ref, say) carry over,
  * which is the whole reason those two are separate concepts.
  */
@@ -46,7 +46,7 @@ export function installedCapabilities(): Array<{ capability: Capability; agents:
 /**
  * Recover the non-secret input values a capability was installed with.
  *
- * Prefer the live config — an arg like `--project-ref=abc` is the ground truth —
+ * Prefer the live config, an arg like `--project-ref=abc` is the ground truth,
  * and fall back to the install ledger. Without this, exporting a real Supabase
  * install silently drops its project ref and the manifest cannot be replayed.
  */

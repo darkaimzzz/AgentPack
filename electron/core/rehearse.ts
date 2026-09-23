@@ -57,7 +57,7 @@ for (let i = 1; i <= RUNS; i++) {
   // 1. scan + recommend, exactly as the UI does
   const scan = scanProject(process.cwd())
   const recs = recommend(scan)
-  // Only capabilities that need no user input — a rehearsal must be unattended.
+  // Only capabilities that need no user input, a rehearsal must be unattended.
   const candidates = recs.map((r) => r.capability).filter((c) => !(c.inputs?.length || c.secrets?.length))
   if (!candidates.length) problems.push('no credential-free capabilities were recommended')
 
@@ -71,7 +71,7 @@ for (let i = 1; i <= RUNS; i++) {
     .filter((d) => d.agents.length)
   if (dirty.length) {
     problems.push(
-      `baseline is not clean — ${dirty.map((d) => `${d.id} in ${d.agents.join('/')}`).join(', ')} already configured. ` +
+      `baseline is not clean, ${dirty.map((d) => `${d.id} in ${d.agents.join('/')}`).join(', ')} already configured. ` +
       'Roll your real configs back first: node electron/core/cli.ts rollback --all',
     )
   }
@@ -86,14 +86,14 @@ for (let i = 1; i <= RUNS; i++) {
       // only 'failed' let one agent refuse the write while installs on the
       // others carried the health and write-detection checks to a false pass.
       if (r.status === 'failed' || r.status === 'conflict') {
-        problems.push(`${c.capability.id}/${r.agent}: ${r.status} — ${r.error}`)
+        problems.push(`${c.capability.id}/${r.agent}: ${r.status}, ${r.error}`)
       }
     }
   }
 
   // 3. something must actually have been written this run, not just skipped
   const installed = report.capabilities.flatMap((c) => c.results).filter((r) => r.status === 'installed')
-  if (!installed.length && !problems.length) problems.push('nothing was installed — every write was skipped')
+  if (!installed.length && !problems.length) problems.push('nothing was installed, every write was skipped')
   const during = fingerprint()
   const changed = tracked.filter((p) => during[p] !== baseline[p])
   if (!changed.length && !problems.length) problems.push('no config changed on disk despite reporting installs')

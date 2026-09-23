@@ -94,7 +94,7 @@ export default function Dashboard() {
       const failures = r.results.filter((x) => !x.success)
       if (r.status === 'ok') {
         const changed = r.results.length
-        setMessage(changed ? `Applied ${r.profile.name} — ${changed} change${changed === 1 ? '' : 's'}.` : `Already on ${r.profile.name}.`)
+        setMessage(changed ? `Applied ${r.profile.name}, ${changed} change${changed === 1 ? '' : 's'}.` : `Already on ${r.profile.name}.`)
         setUi('ready')
       } else {
         // Never a green tick over a config that is not what was asked for.
@@ -141,7 +141,7 @@ export default function Dashboard() {
   // Nothing measured yet reads as "0 / 0", which looks like an empty machine
   // rather than an unmeasured one. Say which it is.
   const nothingMeasured = summary.allTools === 0 && unmeasured > 0
-  const dash = (n: number) => (nothingMeasured ? '—' : n.toLocaleString())
+  const dash = (n: number) => (nothingMeasured ? '-' : n.toLocaleString())
 
   return (
     <div className="wrap">
@@ -161,7 +161,7 @@ export default function Dashboard() {
           <div className="h">Context cost not measured yet</div>
           <div className="meta">
             {unmeasured} installed capabilit{unmeasured === 1 ? 'y has' : 'ies have'} no measurement.
-            AgentPack launches each server and reads its real tool list — about four seconds each,
+            AgentPack launches each server and reads its real tool list, about four seconds each,
             once per capability.
           </div>
           <button className="btn" onClick={measure} disabled={measuring || busyId !== null}>
@@ -184,7 +184,7 @@ export default function Dashboard() {
         </div>
         <div className="stat">
           <div className="k">Estimated reduction</div>
-          <div className="v accent">{nothingMeasured ? '—' : `${pct}%`}</div>
+          <div className="v accent">{nothingMeasured ? '-' : `${pct}%`}</div>
         </div>
         <div className="bar-track" aria-hidden>
           <div className="bar-fill" style={{ width: `${summary.allTokens ? (summary.activeTokens / summary.allTokens) * 100 : 0}%` }} />
@@ -192,7 +192,7 @@ export default function Dashboard() {
         <div className="meta clm-caveat">
           Estimated from measured tool schemas (characters ÷ 4), once per installed capability. Agent sessions may load tools differently; these are not billed tokens.
           {unmeasured > 0 && (
-            <> {unmeasured} capabilit{unmeasured === 1 ? 'y has' : 'ies have'} no measurement — <button className="linkish" onClick={measure} disabled={measuring || busyId !== null}>{measuring ? 'measuring…' : 'measure now'}</button></>
+            <> {unmeasured} capabilit{unmeasured === 1 ? 'y has' : 'ies have'} no measurement, <button className="linkish" onClick={measure} disabled={measuring || busyId !== null}>{measuring ? 'measuring…' : 'measure now'}</button></>
           )}
         </div>
       </div>
@@ -238,7 +238,7 @@ export default function Dashboard() {
           <div className="h">{e.capabilityName}: {e.result.success ? 'enabled for the next agent session' : 'automatic activation failed'}</div>
           <div className="meta">
             {e.path} matched <code>{e.pattern}</code> → {e.agent}
-            {!e.result.success && <span className="caveat"> — but the change failed: {e.result.error}</span>}
+            {!e.result.success && <span className="caveat">, but the change failed: {e.result.error}</span>}
           </div>
         </div>
       ))}
@@ -249,7 +249,7 @@ export default function Dashboard() {
         <div key={row.capability.id} className={`card clm-row ${row.anyActive ? '' : 'dim'}`}>
           <div className="grow">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className={`pill ${row.anyActive ? 'on' : ''}`}>{row.anyActive ? 'ACTIVE' : row.anyDormant ? 'DORMANT' : '—'}</span>
+              <span className={`pill ${row.anyActive ? 'on' : ''}`}>{row.anyActive ? 'ACTIVE' : row.anyDormant ? 'DORMANT' : '-'}</span>
               <span className="title">{row.capability.name}</span>
               {row.capability.type === 'plugin' && <span className="tag">PLUGIN</span>}
             </div>
@@ -296,7 +296,7 @@ export default function Dashboard() {
 
       <p className="meta" style={{ marginTop: 16 }}>
         Changes are written to the live agent configuration and backed up first.
-        <strong> Restart the agent for them to take effect</strong> — a running session
+        <strong> Restart the agent for them to take effect</strong>, a running session
         keeps the tools it started with.
       </p>
     </div>

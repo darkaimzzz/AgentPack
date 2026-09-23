@@ -3,7 +3,7 @@
   "name": "Supabase",
   "type": "mcp",
   "description": "Inspect tables, run read-only SQL, read logs and generate types for a Supabase project.",
-  "source": "Supabase — npm @supabase/mcp-server-supabase",
+  "source": "Supabase, npm @supabase/mcp-server-supabase",
   "install": {
     "command": "npx",
     "args": [

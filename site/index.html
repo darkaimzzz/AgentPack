@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentPack — a cross-agent package manager for AI coding capabilities</title>
+<title>AgentPack: a cross-agent package manager for AI coding capabilities</title>
 <meta name="description" content="Install and manage MCP servers and plugins across Claude Code, Codex and OpenCode. One capability, three config formats, every server verified, every change reversible.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23cf2434' stroke='%231a1a1a' stroke-width='7'/><circle cx='36' cy='34' r='15' fill='%23f2efe9' stroke='%231a1a1a' stroke-width='5'/><circle cx='36' cy='34' r='8' fill='%2329a8e0'/></svg>">
 
@@ -292,7 +292,7 @@ footer a{color:#fff}
           </span>
         </a>
         <p class="dl-note">
-          Unsigned, so SmartScreen warns once — <em>More info → Run anyway</em>.<br>
+          Unsigned, so SmartScreen warns once: <em>More info → Run anyway</em>.<br>
           SHA-256 <code id="sha">loading…</code>
         </p>
       </div>
@@ -330,9 +330,9 @@ scan → review → install → verified ✓
     <h2>How it works</h2>
     <p class="sub">Seven stages. Nothing is reported as working until it has been observed working.</p>
     <div class="pipe">
-      <div class="step"><i>1</i><b>Detect</b><p>Finds installed agents and reads your project stack — with the file that proves each signal.</p></div>
+      <div class="step"><i>1</i><b>Detect</b><p>Finds installed agents and reads your project stack, with the file that proves each signal.</p></div>
       <div class="step"><i>2</i><b>Recommend</b><p>Deterministic rules, not a model. You can read them and predict the output.</p></div>
-      <div class="step"><i>3</i><b>Compile</b><p>One capability definition becomes JSON, TOML and JSONC — each written surgically.</p></div>
+      <div class="step"><i>3</i><b>Compile</b><p>One capability definition becomes JSON, TOML and JSONC, each written surgically.</p></div>
       <div class="step"><i>4</i><b>Install</b><p>Configs are backed up first. Credentials are requested only where declared.</p></div>
       <div class="step"><i>5</i><b>Verify</b><p>Each server is launched and asked for its tool list. Not "we wrote a file".</p></div>
       <div class="step"><i>6</i><b>Manage</b><p>Switch a capability off without uninstalling it. Context cost is measured, not guessed.</p></div>
@@ -388,16 +388,16 @@ scan → review → install → verified ✓
           <li><span><b>Windows x64.</b> macOS and Linux aren't supported yet.</span></li>
           <li><span><b>Node.js 22.17+</b> with npm on PATH. The app bundles Electron, but launches MCP servers with your Node.</span></li>
           <li><span>Internet on first install, to fetch MCP packages.</span></li>
-          <li><span>It writes to your <b>real</b> agent configs. Every write is backed up and reversible — or pass <code>--demo</code> for a sandbox.</span></li>
+          <li><span>It writes to your <b>real</b> agent configs. Every write is backed up and reversible, or pass <code>--demo</code> for a sandbox.</span></li>
         </ul>
       </div>
       <div>
         <h2>What it won't claim</h2>
         <p class="sub">Stated, not hidden.</p>
         <ul class="req">
-          <li><span>A healthy server means it started and returned a tool list — <b>not</b> that your credentials are valid.</span></li>
+          <li><span>A healthy server means it started and returned a tool list, <b>not</b> that your credentials are valid.</span></li>
           <li><span>Plugin status reads <b>Configured</b>, never Verified. A plugin loads inside the agent, out of reach.</span></li>
-          <li><span>Context figures are estimates — schema characters ÷ 4, not billed tokens.</span></li>
+          <li><span>Context figures are estimates (schema characters ÷ 4), not billed tokens.</span></li>
           <li><span>Release binaries are unsigned.</span></li>
         </ul>
       </div>

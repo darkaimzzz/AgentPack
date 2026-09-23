@@ -3,7 +3,7 @@
   "name": "Playwright",
   "type": "mcp",
   "description": "Drive a real browser: navigate, click, fill forms, screenshot, read console and network.",
-  "source": "Microsoft — npm @playwright/mcp",
+  "source": "Microsoft, npm @playwright/mcp",
   "install": {
     "command": "npx",
     "args": [

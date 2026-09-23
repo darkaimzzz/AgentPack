@@ -98,7 +98,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
   })
 
   // Record the ledger entry NOW, before a single byte is written. If anything
-  // below throws, the backups are still reachable and rollback still works —
+  // below throws, the backups are still reachable and rollback still works,
   // which is precisely the moment it matters.
   ledger.record({
     id: runId,
@@ -151,7 +151,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
       const base = { agent: key, configPath, backupPath: token.backupPath }
       try {
         if (!cap.supportedAgents.includes(key) || !supportsType(adapter, cap)) {
-          // Not a failure — this agent simply cannot host this kind of
+          // Not a failure, this agent simply cannot host this kind of
           // capability. Reporting it as failed would make a correct outcome
           // look broken.
           const why = cap.type === 'plugin' && !supportsType(adapter, cap)
@@ -171,7 +171,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
         if (state === 'different') {
           const error =
             `${cap.name} is already configured in ${adapter.name} with different settings ` +
-            'Left untouched — remove it there, or roll back, to replace it.'
+            'Left untouched, remove it there, or roll back, to replace it.'
           onProgress({ kind: 'agent', agent: key, status: 'conflict', detail: `${cap.name}: differs` })
           return { ...base, status: 'conflict' as const, error }
         }
@@ -183,7 +183,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
         // can disagree about which part of a file is authoritative, and a health
         // check proves the server runs, not that the saved config points at it.
         const saved = cap.type === 'plugin' ? adapter.readPlugin?.(resolved) : adapter.read(resolved)
-        if (!saved) throw new Error(`wrote ${cap.name} to ${adapter.name} but could not read the entry back — the change did not take effect`)
+        if (!saved) throw new Error(`wrote ${cap.name} to ${adapter.name} but could not read the entry back, the change did not take effect`)
         captureAfter(token,runId)
         ledger.amend(runId,{backups})
         onProgress({ kind: 'agent', agent: key, status: 'installed', detail: cap.name })
@@ -202,7 +202,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
     if (!configured) {
       health = {status:'failed',method:'config-only',configured:false,reachable:false,tools:[],durationMs:0,error:'No compatible target was configured. See the agent results.'}
     } else if (cap.type === 'plugin') {
-      // A plugin has no server to start — its skills and commands load inside
+      // A plugin has no server to start, its skills and commands load inside
       // the agent process. We can confirm the config is correct and nothing
       // more, so we say exactly that rather than implying verification.
       health = {
@@ -228,7 +228,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
       stage: 'validate',
       detail: health.status === 'verified' ? `${cap.name}: ${health.tools.length} tools`
         : health.status === 'configured' ? `${cap.name}: configured (loads inside the agent)`
-        : `${cap.name}: FAILED — ${health.error}`,
+        : `${cap.name}: FAILED, ${health.error}`,
     })
 
     reports.push({ capability: cap, results, health })
@@ -240,7 +240,7 @@ export async function install(req: InstallRequest): Promise<InstallReport> {
 
 /**
  * Undo a run by restoring the configs we backed up.
- * We restore configuration only — we do not claim to undo npm/npx caches
+ * We restore configuration only, we do not claim to undo npm/npx caches
  * or machine state (CLAUDE.md §15).
  */
 export type RollbackOutcome = {
@@ -256,7 +256,7 @@ export type RollbackOutcome = {
  * Undo one run.
  *
  * Whole-file restore is only safe when nothing has touched the file since we
- * wrote it — and something often has, because Claude Code rewrites
+ * wrote it, and something often has, because Claude Code rewrites
  * ~/.claude.json continuously. When the file has changed we remove just our own
  * entries instead, so a later edit is never silently destroyed.
  */

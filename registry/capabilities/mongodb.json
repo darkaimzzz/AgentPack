@@ -3,7 +3,7 @@
   "name": "MongoDB",
   "type": "mcp",
   "description": "Browse MongoDB databases, collections and indexes, and run read-only queries and aggregations.",
-  "source": "MongoDB — npm mongodb-mcp-server",
+  "source": "MongoDB, npm mongodb-mcp-server",
   "install": {
     "command": "npx",
     "args": ["-y", "mongodb-mcp-server@2.1.1", "--readOnly"]
@@ -12,7 +12,7 @@
     {
       "key": "MDB_MCP_CONNECTION_STRING",
       "label": "MongoDB connection string",
-      "help": "e.g. mongodb+srv://user:password@cluster.mongodb.net/ — carries your password, so it is kept out of exports"
+      "help": "e.g. mongodb+srv://user:password@cluster.mongodb.net/, carries your password, so it is kept out of exports"
     }
   ],
   "supportedAgents": ["claude", "codex", "opencode"]

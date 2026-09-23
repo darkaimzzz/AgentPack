@@ -1,7 +1,7 @@
 // The renderer shares the engine's vocabulary rather than mirroring it.
 //
 // These are type-only imports, erased at build time, so no engine code reaches
-// the renderer bundle — but the shapes can no longer drift apart, which they
+// the renderer bundle, but the shapes can no longer drift apart, which they
 // had already begun to do (HealthResult had ten fields here and twenty there).
 export type {
   AgentKey,

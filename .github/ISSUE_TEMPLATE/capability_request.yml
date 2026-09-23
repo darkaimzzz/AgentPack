@@ -6,14 +6,14 @@ body:
     attributes:
       value: |
         The registry is curated and allow-listed. An entry is accepted once it has
-        been observed starting and answering `tools/list` — see
+        been observed starting and answering `tools/list`, see
         [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
 
   - type: input
     id: name
     attributes:
       label: Name and package
-      placeholder: "Playwright — npm @playwright/mcp@0.0.4x"
+      placeholder: "Playwright, npm @playwright/mcp@0.0.4x"
     validations:
       required: true
 

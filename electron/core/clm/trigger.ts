@@ -7,12 +7,12 @@ import type { AgentKey, TriggerDefinition, TriggerEvent } from '../types.ts'
  * One automatic activation mechanism (PRD §12): a file-pattern trigger.
  *
  * Watch the project directory; when a touched file matches a dormant
- * capability's glob, activate it. Deliberately the simplest REAL mechanism —
+ * capability's glob, activate it. Deliberately the simplest REAL mechanism,
  * we do not pretend to know which file the editor has open, because AgentPack
  * has no editor integration.
  */
 
-/** Directories never worth watching — noisy, and nothing here is source. */
+/** Directories never worth watching, noisy, and nothing here is source. */
 const IGNORED = /(^|[\\/])(node_modules|\.git|dist|out|release|\.next|build|coverage|\.turbo)([\\/]|$)/
 
 // Translate a glob to a RegExp.
@@ -62,7 +62,7 @@ export type WatchHandle = { stop: () => void; watching: string; readonly error?:
  * Start watching a project directory.
  *
  * Returns a handle; call stop() to release the watcher. Only DORMANT
- * capabilities are activated — a trigger never deactivates anything, and never
+ * capabilities are activated, a trigger never deactivates anything, and never
  * touches one that is already active.
  */
 export function startWatching(
@@ -111,7 +111,7 @@ export function startWatching(
       try { handle(event, filename) } catch {
         // Close before reporting. A watcher that keeps firing after it has
         // told the caller it failed will go on mutating agent configs behind
-        // a UI that says it stopped — and the caller may well have dropped
+        // a UI that says it stopped, and the caller may well have dropped
         // its handle in response to the error.
         watchError = 'Automatic activation failed. Check agent configuration and the dormant store.'
         watcher?.close()

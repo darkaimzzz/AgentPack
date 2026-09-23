@@ -17,7 +17,7 @@ import type {
  * The CLM state engine (PRD §10).
  *
  * The live agent config is the source of truth for whether a capability is
- * active — never our stored state (§14). Every mutation follows §4.9:
+ * active, never our stored state (§14). Every mutation follows §4.9:
  * read -> validate -> backup -> mutate -> validate -> restore on failure.
  */
 
@@ -59,7 +59,7 @@ function appendLog(e: MutationLogEntry) {
 
 /**
  * Does this agent's config still parse?
- * Delegates to the adapter's validate(), which does not swallow parse errors —
+ * Delegates to the adapter's validate(), which does not swallow parse errors,
  * unlike the readers, where "unreadable" and "empty" look the same.
  */
 export function validateConfig(adapter: AgentAdapter): { ok: boolean; error?: string } {
@@ -85,7 +85,7 @@ function resolveFor(cap: Capability, agent: AgentKey): Capability {
 
 /**
  * What state is this capability actually in, according to the live config?
- * `unknown` means neither live nor stashed — i.e. not installed at all.
+ * `unknown` means neither live nor stashed, i.e. not installed at all.
  */
 export function runtimeState(capabilityId: string, agent: AgentKey): CapabilityRuntimeState {
   const cap = getCapability(capabilityId)
@@ -99,7 +99,7 @@ export function runtimeState(capabilityId: string, agent: AgentKey): CapabilityR
     } else {
       const live = adapter.read(resolveFor(cap, agent))
       // A present entry with enabled:false is installed but NOT exposed to the
-      // agent — that is exactly dormancy, expressed natively.
+      // agent, that is exactly dormancy, expressed natively.
       if (live) return live.enabled === false ? 'dormant' : 'active'
     }
   } catch {
@@ -207,7 +207,7 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
     }
     // Drop the stash ONLY once the live entry is demonstrably back. If the
     // restore did not take, that stash is the only surviving copy of the
-    // entry and its credentials — discarding it here would turn a failed
+    // entry and its credentials, discarding it here would turn a failed
     // deactivation into real data loss.
     if (!native) {
       const restored = adapter.read(resolved) !== null
@@ -215,7 +215,7 @@ export function deactivate(capabilityId: string, agent: AgentKey, opts: MutateOp
       else {
         return fail(
           capabilityId, agent, from, from,
-          `${(e as Error).message}. The entry was not restored to the live config, so its saved copy has been kept — ` +
+          `${(e as Error).message}. The entry was not restored to the live config, so its saved copy has been kept, ` +
           'reactivate it from Manage, or restore the backup by hand.',
           opts, token.backupPath ?? undefined,
         )
@@ -256,7 +256,7 @@ export function activate(capabilityId: string, agent: AgentKey, opts: MutateOpts
       return { success: true, capabilityId, agent, from, to: 'active', changedFiles: [], noop: true }
     }
   }
-  // With a native flag the entry never left, so there is nothing to restore —
+  // With a native flag the entry never left, so there is nothing to restore,
   // just switch it back on.
   if (typeof adapter.setEnabled === 'function' && !stashed) {
     const resolvedNative = resolveFor(cap, agent)
@@ -341,7 +341,7 @@ export type ReconcileEvent = {
  * Bring stored state in line with reality at startup.
  *
  * The live config always wins. If a capability is active but we still hold a
- * dormant stash for it, the stash is stale — someone re-added it by hand, or an
+ * dormant stash for it, the stash is stale, someone re-added it by hand, or an
  * install ran. Drop the stash; never rewrite the config to match our cache.
  */
 export function reconcile(): ReconcileEvent[] {

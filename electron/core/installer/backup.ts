@@ -43,7 +43,7 @@ function deleteFile(path: string): void {
  * The hash is taken FIRST and the copy is allowed to fail. The copy is an
  * optimisation that lets rollback merge around later edits; the hash alone is
  * enough to prove "untouched since we wrote it", which is what rollback needs
- * in the common case. Letting a failed copy throw used to lose both — the
+ * in the common case. Letting a failed copy throw used to lose both, the
  * write had already happened, so the change became unattributable and rollback
  * silently did nothing while still reporting the run undone.
  */
@@ -92,7 +92,7 @@ export function prepareRestore(token: BackupToken): { kind: 'restored' | 'remove
     }
     // Old ledgers cannot prove ownership after an intervening edit.
     if (token.postHash) throw new Error(`Config changed since this older run: ${token.configPath}. Restore its backup manually.`)
-    // Nothing was ever written through this token — an already-present
+    // Nothing was ever written through this token, an already-present
     // capability, or an agent that could not host it. There is nothing to undo.
     if (!token.written) return null
     // Written, but with no post-image of any kind. If the file still matches the
@@ -102,7 +102,7 @@ export function prepareRestore(token: BackupToken): { kind: 'restored' | 'remove
     if (current === (token.existed && token.backupPath ? hashFile(token.backupPath) : null)) return null
     throw new Error(
       `Cannot prove what this run wrote to ${token.configPath}: the post-install snapshot is missing. ` +
-      `Its backup is at ${token.backupPath ?? '(none — the file did not exist)'}; restore it by hand if the change should be undone.`,
+      `Its backup is at ${token.backupPath ?? '(none, the file did not exist)'}; restore it by hand if the change should be undone.`,
     )
   }
   const beforeText = token.existed ? readFileSync(token.backupPath!, 'utf8') : ''
@@ -119,7 +119,7 @@ export function prepareRestore(token: BackupToken): { kind: 'restored' | 'remove
   // not enough: a comment added afterwards parses to the same value, and a
   // wholesale restore would silently delete it. So for those formats demand
   // byte equality and otherwise fall through to the per-entry path, which edits
-  // in place. Plain JSON has no comments, so semantic equality is sufficient —
+  // in place. Plain JSON has no comments, so semantic equality is sufficient,
   // and insisting on bytes there would needlessly reformat a file our own
   // dormancy round-trip had rewritten.
   const carriesComments = /\.(toml|jsonc)$/i.test(token.configPath)

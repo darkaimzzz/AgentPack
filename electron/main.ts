@@ -12,7 +12,7 @@ if (process.argv.includes('--demo')) {
 
 // In a packaged build the code lives inside app.asar, so walking up from the
 // module directory cannot find the registry. It ships as an extra resource
-// instead. Set before any core module reads it — registry lookup is lazy.
+// instead. Set before any core module reads it, registry lookup is lazy.
 if (app.isPackaged) {
   process.env.AGENTPACK_REGISTRY ??= join(process.resourcesPath, 'registry')
 }
@@ -56,11 +56,11 @@ function createWindow() {
   // The startup animation is off under the test harnesses: smokeTest() queries
   // the DOM once on did-finish-load with no retry, so an intro would make it
   // report a false failure. Carried in the URL rather than over IPC because the
-  // renderer has to know before its first paint — a round-trip would let the
+  // renderer has to know before its first paint, a round-trip would let the
   // animation flash before the answer arrived.
   const skipBoot = Boolean(process.env.AGENTPACK_SMOKE) || process.env.AGENTPACK_NO_BOOT === '1'
   // Demo mode exists to show the product, so it plays the intro even when the
-  // OS asks for reduced motion — which Windows does more often than expected.
+  // OS asks for reduced motion, which Windows does more often than expected.
   const forceBoot = process.env.AGENTPACK_DEMO === '1' || process.env.AGENTPACK_BOOT === '1'
   const hash = skipBoot ? 'noboot' : forceBoot ? 'boot' : ''
   const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -70,7 +70,7 @@ function createWindow() {
   return win
 }
 
-// Only reaches native surfaces now — chiefly the folder picker, which should
+// Only reaches native surfaces now, chiefly the folder picker, which should
 // match the light UI rather than fight it.
 nativeTheme.themeSource = 'light'
 
@@ -92,7 +92,7 @@ async function smokeTest(win: BrowserWindow) {
   const result = await win.webContents.executeJavaScript(`(async () => {
    try {
     const api = window.agentpack
-    if (!api) return { ok: false, why: 'window.agentpack missing — preload did not run' }
+    if (!api) return { ok: false, why: 'window.agentpack missing, preload did not run' }
     const agents = await api.detectAgents()
     const analysis = await api.analyze(${JSON.stringify(process.cwd())})
     const rendered = document.querySelectorAll('.card').length

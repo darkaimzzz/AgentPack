@@ -44,7 +44,7 @@ export function writeJson(path: string, obj: unknown): void {
 }
 
 /**
- * Read JSON with comments and trailing commas — the `.jsonc` OpenCode ships.
+ * Read JSON with comments and trailing commas, the `.jsonc` OpenCode ships.
  * Rejecting a comment would refuse a file the agent itself considers valid.
  */
 export function readJsonc<T = Record<string, unknown>>(path: string): T {
@@ -61,7 +61,7 @@ export function readJsonc<T = Record<string, unknown>>(path: string): T {
     const keys = (tree.children ?? []).map((c) => c.children?.[0]?.value as string)
     const duplicate = keys.find((k, i) => k !== undefined && keys.indexOf(k) !== i)
     if (duplicate) {
-      throw new Error(`${path} defines "${duplicate}" more than once — remove the duplicate so it is clear which applies`)
+      throw new Error(`${path} defines "${duplicate}" more than once, remove the duplicate so it is clear which applies`)
     }
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(path + ' must contain a config object')

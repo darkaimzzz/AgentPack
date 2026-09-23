@@ -3,7 +3,7 @@
   "name": "Linear",
   "type": "plugin",
   "description": "Create and update Linear issues, manage projects and search across workspaces.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

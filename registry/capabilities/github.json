@@ -2,8 +2,8 @@
   "id": "github",
   "name": "GitHub",
   "type": "mcp",
-  "description": "Read and manage repositories, issues and pull requests. This is the archived stdio server, kept because it is the only one of the two that works in OpenCode — prefer the official GitHub plugin on Claude Code and Codex.",
-  "source": "GitHub — npm @modelcontextprotocol/server-github (deprecated upstream)",
+  "description": "Read and manage repositories, issues and pull requests. This is the archived stdio server, kept because it is the only one of the two that works in OpenCode, prefer the official GitHub plugin on Claude Code and Codex.",
+  "source": "GitHub, npm @modelcontextprotocol/server-github (deprecated upstream)",
   "install": {
     "command": "npx",
     "args": [

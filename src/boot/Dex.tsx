@@ -2,7 +2,7 @@
  * The boot device, drawn rather than shipped.
  *
  * Two panels, each its own SVG so the hinge can be a real CSS 3D rotation on an
- * HTML wrapper — a single flat image could not open, and would blur at the zoom
+ * HTML wrapper, a single flat image could not open, and would blur at the zoom
  * peak. Everything here is vector, so the whole intro adds no binary assets.
  *
  * Geometry is traced from the reference: lens and three lamps top-left, a white
@@ -15,7 +15,7 @@ const BODY = '#cf2434'
 const BODY_DARK = '#a4101e'
 const BEZEL_WHITE = '#f2efe9'
 
-/** Left panel — the face you see when the device is closed. */
+/** Left panel, the face you see when the device is closed. */
 export function DexLeft() {
   return (
     <svg className="dex-svg" viewBox="0 0 300 430" xmlns="http://www.w3.org/2000/svg" aria-hidden>
@@ -77,7 +77,7 @@ export function DexLeft() {
   )
 }
 
-/** Right panel — hidden behind the left until the device swings open. */
+/** Right panel, hidden behind the left until the device swings open. */
 export function DexRight() {
   return (
     <svg className="dex-svg" viewBox="0 0 300 430" xmlns="http://www.w3.org/2000/svg" aria-hidden>

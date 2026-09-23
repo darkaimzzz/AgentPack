@@ -1,4 +1,4 @@
-// Shared vocabulary. Kept deliberately small — this grows only when a real
+// Shared vocabulary. Kept deliberately small, this grows only when a real
 // caller needs a field.
 
 export type AgentKey = 'claude' | 'codex' | 'opencode'
@@ -63,7 +63,7 @@ export type Capability = {
   install?: { command: string; args: string[] }
   /**
    * Plugins only: which marketplace to register and which plugin to enable.
-   * Claude Code and Codex share this model — and even the "plugin@marketplace"
+   * Claude Code and Codex share this model, and even the "plugin@marketplace"
    * id syntax. OpenCode's `plugin` array is a different, npm-based concept and
    * is deliberately not treated as equivalent.
    */
@@ -153,7 +153,7 @@ export type BackupToken = {
   afterPath?: string
   /**
    * True once this run has actually written to the file. It distinguishes
-   * "nothing to undo" from "we wrote but lost the post-image" — without it,
+   * "nothing to undo" from "we wrote but lost the post-image", without it,
    * rollback cannot tell an already-present capability apart from a change it
    * can no longer attribute, and must guess wrong in one direction or other.
    */

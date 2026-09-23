@@ -12,7 +12,7 @@ export type ConfigEntry = {
 
 /**
  * How an existing config entry relates to the one we intend to write.
- * `different` must never be reported as installed — a stale command or scope
+ * `different` must never be reported as installed, a stale command or scope
  * that no longer works would otherwise pass as healthy.
  */
 export type MatchState = 'absent' | 'same' | 'different'
@@ -50,7 +50,7 @@ export type AgentAdapter = {
   /**
    * Disable a capability in place, keeping its entry and credentials.
    *
-   * Only for formats with a native flag — OpenCode's `enabled`. Where this
+   * Only for formats with a native flag, OpenCode's `enabled`. Where this
    * exists, dormancy never removes anything and never needs the credential
    * stash, which is strictly safer. Agents without it fall back to
    * remove-and-stash.
@@ -58,7 +58,7 @@ export type AgentAdapter = {
   setEnabled?(cap: Capability, enabled: boolean): void
 
   /**
-   * Plugin support. Only agents with a git-marketplace model implement these —
+   * Plugin support. Only agents with a git-marketplace model implement these,
    * Claude Code and Codex. OpenCode's `plugin` array is npm-based and is NOT
    * an equivalent, so it deliberately leaves these undefined.
    */

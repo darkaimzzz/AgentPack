@@ -12,13 +12,13 @@ import type { ConfigEntry } from '../agents/adapter.ts'
  * ⚠️ THIS FILE CONTAINS CREDENTIALS.
  *
  * Making a capability dormant removes its entry from the agent config, and that
- * entry carries its env — including any token. Dropping them would mean
+ * entry carries its env, including any token. Dropping them would mean
  * "dormant" quietly destroyed the user's credentials, which PRD §20 forbids, so
  * the whole entry is stashed here verbatim.
  *
  * This is deliberately NOT the install ledger. The ledger records secret names
  * only and a test pins that; this store is a separate, clearly-named file whose
- * exposure is identical to the agent config the values came from — they were
+ * exposure is identical to the agent config the values came from, they were
  * already sitting in ~/.claude.json in plaintext.
  */
 

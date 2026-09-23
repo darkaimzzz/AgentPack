@@ -61,7 +61,7 @@ console.log(`\nAgentPack end-to-end ${dim(`(sandbox: ${sandbox})`)}\n`)
 const agents = detectAgents().filter((a) => a.detected).map((a) => a.key as AgentKey)
 
 await step('detects the supported agents', () => {
-  assert.ok(agents.length >= 1, 'no agents detected — cannot run the rest')
+  assert.ok(agents.length >= 1, 'no agents detected, cannot run the rest')
   for (const a of detectAgents().filter((x) => x.detected)) {
     assert.ok(existsSync(a.configPath) || a.note, `${a.name}: config path neither present nor explained`)
   }

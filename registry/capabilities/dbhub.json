@@ -2,8 +2,8 @@
   "id": "dbhub",
   "name": "SQL Database",
   "type": "mcp",
-  "description": "Explore and query a PostgreSQL, MySQL, MariaDB, SQLite or SQL Server database — schemas, tables and read queries.",
-  "source": "Bytebase — npm @bytebase/dbhub",
+  "description": "Explore and query a PostgreSQL, MySQL, MariaDB, SQLite or SQL Server database, schemas, tables and read queries.",
+  "source": "Bytebase, npm @bytebase/dbhub",
   "install": {
     "command": "npx",
     "args": ["-y", "@bytebase/dbhub@1.2.3", "--transport", "stdio"]
@@ -12,7 +12,7 @@
     {
       "key": "DSN",
       "label": "Database connection string",
-      "help": "e.g. postgres://user:password@localhost:5432/dbname — treated as a secret because it carries your password"
+      "help": "e.g. postgres://user:password@localhost:5432/dbname, treated as a secret because it carries your password"
     }
   ],
   "supportedAgents": ["claude", "codex", "opencode"]

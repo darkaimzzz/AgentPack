@@ -3,7 +3,7 @@
   "name": "Beads",
   "type": "plugin",
   "description": "Graph-based issue and dependency tracker that gives agents persistent, structured project memory.",
-  "source": "Steve Yegge — github steveyegge/beads",
+  "source": "Steve Yegge, github steveyegge/beads",
   "plugin": {
     "marketplace": "beads-marketplace",
     "repo": "steveyegge/beads",

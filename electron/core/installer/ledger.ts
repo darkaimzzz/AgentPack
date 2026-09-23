@@ -4,7 +4,7 @@ import type { BackupToken } from '../types.ts'
 import { atomicWrite } from '../files.ts'
 
 /**
- * What we changed and how to undo it. One JSON file — no database.
+ * What we changed and how to undo it. One JSON file, no database.
  * Secrets never appear here: only their variable names.
  */
 export type LedgerEntry = {

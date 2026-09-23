@@ -3,7 +3,7 @@
   "name": "Claude-Mem",
   "type": "plugin",
   "description": "Persistent cross-session memory: recall decisions and context from previous sessions.",
-  "source": "thedotmack — github thedotmack/claude-mem",
+  "source": "thedotmack, github thedotmack/claude-mem",
   "plugin": {
     "marketplace": "thedotmack",
     "repo": "thedotmack/claude-mem",

@@ -3,7 +3,7 @@
   "name": "Semgrep",
   "type": "plugin",
   "description": "Catches security vulnerabilities as code is written, and steers the agent towards secure patterns.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

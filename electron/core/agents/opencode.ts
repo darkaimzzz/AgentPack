@@ -8,7 +8,7 @@ import type { Capability } from '../types.ts'
 // Shape verified against the published schema at https://opencode.ai/config.json:
 //   mcp.<id> = { type: "local", command: string[], environment: {}, enabled: bool }
 //
-// Note the two real differences from the others — `command` is a SINGLE array
+// Note the two real differences from the others, `command` is a SINGLE array
 // merging executable and args, and the env key is `environment`, not `env`.
 // This is why the adapter layer is a translation and not a reformat.
 

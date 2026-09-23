@@ -3,7 +3,7 @@
   "name": "Sequential Thinking",
   "type": "mcp",
   "description": "Structured step-by-step reasoning scratchpad for multi-stage problems.",
-  "source": "Anthropic — npm @modelcontextprotocol/server-sequential-thinking",
+  "source": "Anthropic, npm @modelcontextprotocol/server-sequential-thinking",
   "install": {
     "command": "npx",
     "args": [

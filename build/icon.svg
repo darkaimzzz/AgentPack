@@ -1,4 +1,4 @@
-<!-- AgentPack app icon — large sizes (48px and up).
+<!-- AgentPack app icon, large sizes (48px and up).
      Regenerate build/icon.ico with:  node scripts/make-icon.mjs -->
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <!-- case -->

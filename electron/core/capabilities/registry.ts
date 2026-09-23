@@ -54,7 +54,7 @@ export const getPack = (id: string): Pack => {
 /**
  * Resolve ${...} placeholders in install args.
  *
- * ${projectDir} is built in — servers like filesystem are useless without a
+ * ${projectDir} is built in, servers like filesystem are useless without a
  * path, and baking an absolute path into shared registry data is not portable.
  * Everything else comes from the capability's declared `inputs`.
  */

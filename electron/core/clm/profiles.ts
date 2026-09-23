@@ -9,7 +9,7 @@ import type { AgentKey, CapabilityProfile, ProfileResult, RuntimeMutationResult 
  * Profiles (PRD §11): a named set of capabilities that should be active.
  *
  * Stored as data in registry/profiles/*.json, matching how capabilities and
- * packs are stored — a profile is never hard-coded into a component.
+ * packs are stored, a profile is never hard-coded into a component.
  */
 
 let cache: CapabilityProfile[] | null = null
@@ -34,7 +34,7 @@ export type ProfilePlan = {
   profile: CapabilityProfile
   activate: Array<{ capabilityId: string; agent: AgentKey }>
   deactivate: Array<{ capabilityId: string; agent: AgentKey }>
-  /** Already in the desired state — shown so the diff is honest about doing nothing. */
+  /** Already in the desired state, shown so the diff is honest about doing nothing. */
   unchanged: Array<{ capabilityId: string; agent: AgentKey }>
   /**
    * Wanted by the profile but not installed for that agent, so it cannot be
@@ -44,7 +44,7 @@ export type ProfilePlan = {
   unavailable: Array<{ capabilityId: string; agent: AgentKey }>
   /**
    * Agents whose config cannot be parsed. Their capabilities all read as
-   * "unknown", which the diff would otherwise skip silently — leaving the user
+   * "unknown", which the diff would otherwise skip silently, leaving the user
    * with a profile that appears applied and an agent that never changed.
    */
   blocked: Array<{ agent: AgentKey; error: string }>
@@ -96,7 +96,7 @@ export function planProfile(profileId: string, agents?: AgentKey[]): ProfilePlan
  *
  * Deactivations run first so context is freed before anything new is loaded,
  * and so a failure part-way leaves fewer tools active rather than more.
- * A partial failure is reported as partial — never a green tick over a config
+ * A partial failure is reported as partial, never a green tick over a config
  * that is not what the user asked for (§11).
  */
 export function applyProfile(profileId: string, agents?: AgentKey[]): ProfileResult {

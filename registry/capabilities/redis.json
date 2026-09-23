@@ -3,7 +3,7 @@
   "name": "Redis",
   "type": "plugin",
   "description": "Redis development practice: data structures, query engine, vector search, caching and performance.",
-  "source": "Anthropic marketplace — github anthropics/claude-plugins-official",
+  "source": "Anthropic marketplace, github anthropics/claude-plugins-official",
   "plugin": {
     "marketplace": "claude-plugins-official",
     "repo": "anthropics/claude-plugins-official",

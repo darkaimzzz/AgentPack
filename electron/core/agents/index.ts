@@ -7,7 +7,7 @@ import type { AgentKey } from '../types.ts'
 export const adapters: Record<AgentKey, AgentAdapter> = { claude, codex, opencode }
 
 
-/** CLAUDE.md §10 — detection is limited to supported clients, no guessing. */
+/** CLAUDE.md §10, detection is limited to supported clients, no guessing. */
 export const detectAgents = () => Object.values(adapters).map((a) => a.detect())
 
 export type { AgentAdapter }
