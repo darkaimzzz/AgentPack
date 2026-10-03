@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.817 --> 00:00:04.025
+AgentPack: one install for MCP servers across Claude Code, Codex and OpenCode
+
+2
+00:00:04.025 --> 00:00:07.130
+It finds every coding agent on the machine (demo sandbox: throwaway configs)
+
+3
+00:00:07.130 --> 00:00:10.739
+Scan a project: it detects the stack, with the file that proves it
+
+4
+00:00:10.739 --> 00:00:14.917
+Pick a pack: "Local Developer" needs no API keys
+
+5
+00:00:14.917 --> 00:00:18.736
+Review the plan: every config file is backed up before it is touched
+
+6
+00:00:18.736 --> 00:00:23.258
+Installing into all 3 agents, then launching each server to prove it responds…
+
+7
+00:00:23.258 --> 00:00:28.380
+3 servers × 3 agents installed. 39 tools discovered. All verified.
+
+8
+00:00:28.380 --> 00:00:31.387
+And one click undoes the whole run.

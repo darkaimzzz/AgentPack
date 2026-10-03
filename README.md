@@ -7,6 +7,12 @@ A desktop app that installs and manages MCP servers and marketplace plugins acro
 
 Each agent stores MCP configuration in a different place and format: `~/.claude.json` as JSON, `~/.codex/config.toml` as TOML, `~/.config/opencode/opencode.json` as JSONC. AgentPack writes one capability into all three, launches each server to confirm it actually responds, and can undo the whole run.
 
+## Demo
+
+[![31-second demo: scan a project, install into Claude Code, Codex and OpenCode, verify every server, roll back](site/demo-poster.jpg)](https://agentpackfun.vercel.app/#demo)
+
+31 seconds in the `--demo` sandbox, recorded from the real app: scan, install into all three agents, verify 39 tools, roll back. [Watch on the site](https://agentpackfun.vercel.app/#demo) or download [`demo.mp4`](site/demo.mp4).
+
 ## Requirements
 
 - **Windows x64.** macOS and Linux are not supported yet.
